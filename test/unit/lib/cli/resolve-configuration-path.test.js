@@ -6,19 +6,20 @@ chai.use(require('chai-as-promised'));
 const { expect } = chai;
 
 const path = require('path');
-const fs = require('fs').promises;
+const fsp = require('fs').promises;
 const fse = require('fs-extra');
 const overrideArgv = require('process-utils/override-argv');
+const overrideEnv = require('process-utils/override-env');
+const requireUncached = require('ncjsm/require-uncached');
 const resolveServerlessConfigPath = require('../../../../lib/cli/resolve-configuration-path');
 const resolveInput = require('../../../../lib/cli/resolve-input');
-const { triggeredDeprecations } = require('../../../../lib/utils/logDeprecation');
 
-describe('test/unit/lib/cli/resolve-service-config-path.test.js', () => {
+describe('test/unit/lib/cli/resolve-configuration-path.test.js', () => {
   let configurationPath;
   afterEach(async () => {
     if (!configurationPath) return;
     try {
-      await fs.unlink(configurationPath);
+      await fsp.unlink(configurationPath);
     } catch {
       // Ignore any error
     }
@@ -68,10 +69,8 @@ describe('test/unit/lib/cli/resolve-service-config-path.test.js', () => {
       ])
     );
     beforeEach(() => {
-      triggeredDeprecations.clear();
       resolveInput.clear();
     });
-    after(() => triggeredDeprecations.clear());
 
     it('should accept absolute path, pointing configuration in current working directory', async () => {
       await overrideArgv(
@@ -83,15 +82,25 @@ describe('test/unit/lib/cli/resolve-service-config-path.test.js', () => {
     });
 
     it('should temporarily support nested path', async () => {
-      await overrideArgv(
-        {
-          args: ['serverless', '--config', 'nested/custom.yml'],
-        },
-        async () => {
-          expect(await resolveServerlessConfigPath()).to.equal(path.resolve('nested/custom.yml'));
-          expect(triggeredDeprecations.has('NESTED_CUSTOM_CONFIGURATION_PATH')).to.be.true;
-        }
-      );
+      await overrideEnv(async () => {
+        process.env.SLS_DEPRECATION_NOTIFICATION_MODE = 'warn';
+        const uncached = requireUncached(() => ({
+          resolveServerlessConfigPath: require('../../../../lib/cli/resolve-configuration-path'),
+        }));
+        await overrideArgv(
+          {
+            args: ['serverless', '--config', 'nested/custom.yml'],
+          },
+          async () => {
+            await expect(
+              uncached.resolveServerlessConfigPath()
+            ).to.eventually.be.rejected.and.have.property(
+              'code',
+              'NESTED_CUSTOM_CONFIGURATION_PATH'
+            );
+          }
+        );
+      });
     });
     it('should reject unsupported extension', async () => {
       await overrideArgv(
@@ -144,6 +153,29 @@ describe('test/unit/lib/cli/resolve-service-config-path.test.js', () => {
         },
         async () => expect(await resolveServerlessConfigPath()).to.equal(path.resolve('custom.yml'))
       );
+    });
+  });
+
+  describe('options support', () => {
+    before(async () =>
+      Promise.all([
+        fse.ensureFile(path.resolve('custom/custom.yml')),
+        fse.ensureFile(path.resolve('normal/serverless.yml')),
+      ])
+    );
+    beforeEach(() => {
+      resolveInput.clear();
+    });
+
+    it('should support custom cwd', async () => {
+      expect(await resolveServerlessConfigPath({ cwd: 'normal' })).to.equal(
+        path.resolve('normal/serverless.yml')
+      );
+    });
+    it('should support custom cli options', async () => {
+      expect(
+        await resolveServerlessConfigPath({ cwd: 'custom', options: { config: 'custom.yml' } })
+      ).to.equal(path.resolve('custom/custom.yml'));
     });
   });
 });

@@ -2,7 +2,7 @@
 
 const expect = require('chai').expect;
 const AwsCompileWebsocketsEvents = require('../../../../../../../../../../lib/plugins/aws/package/compile/events/websockets/index');
-const Serverless = require('../../../../../../../../../../lib/Serverless');
+const Serverless = require('../../../../../../../../../../lib/serverless');
 const AwsProvider = require('../../../../../../../../../../lib/plugins/aws/provider');
 
 describe('#compileDeployment()', () => {
@@ -13,7 +13,7 @@ describe('#compileDeployment()', () => {
       stage: 'dev',
       region: 'us-east-1',
     };
-    const serverless = new Serverless();
+    const serverless = new Serverless({ commands: [], options: {} });
     serverless.setProvider('aws', new AwsProvider(serverless));
     serverless.service.provider.compiledCloudFormationTemplate = {
       Resources: {},
@@ -22,7 +22,8 @@ describe('#compileDeployment()', () => {
 
     awsCompileWebsocketsEvents = new AwsCompileWebsocketsEvents(serverless, options);
 
-    awsCompileWebsocketsEvents.websocketsApiLogicalId = awsCompileWebsocketsEvents.provider.naming.getWebsocketsApiLogicalId();
+    awsCompileWebsocketsEvents.websocketsApiLogicalId =
+      awsCompileWebsocketsEvents.provider.naming.getWebsocketsApiLogicalId();
   });
 
   it('should create a deployment resource and output', () => {

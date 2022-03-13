@@ -14,11 +14,10 @@ describe('#request', () => {
   it('should enable aws logging when debug log is enabled', () => {
     const configStub = sinon.stub();
     overrideEnv(() => {
-      process.env.SLS_DEBUG = true;
       proxyquire('../../../../lib/aws/request', {
         'aws-sdk': { config: configStub },
       });
-      expect(typeof configStub.logger).to.equal('function');
+      expect(typeof configStub.logger.log).to.equal('function');
     });
   });
 
@@ -40,7 +39,6 @@ describe('#request', () => {
     });
 
     it('should produce a meaningful error when no supported credentials are provided', async () => {
-      process.env.SLS_DEBUG = true;
       const awsRequest = require('../../../../lib/aws/request');
       return expect(
         awsRequest(
@@ -70,9 +68,7 @@ describe('#request', () => {
             Key: 'test-key',
           }
         )
-      ).to.be.rejectedWith(
-        'AWS provider credentials not found. Learn how to set up AWS provider credentials in our docs here: <\u001b[32mhttp://slss.io/aws-creds-setup\u001b[39m>.'
-      );
+      ).to.be.rejectedWith('AWS provider credentials not found.');
     });
   });
 
@@ -203,7 +199,7 @@ describe('#request', () => {
       expect(sendFake.promise).to.have.been.calledTwice;
     });
 
-    it('should not retry if error code is 403 and retryable is set to true', async () => {
+    it('should not retry if status code is 403 and retryable is set to true', async () => {
       const error = {
         providerError: {
           statusCode: 403,
@@ -229,13 +225,40 @@ describe('#request', () => {
       return expect(sendFake.promise).to.have.been.calledOnce;
     });
 
-    it('should expose non-retryable errors', () => {
+    it('should not retry if error code is ExpiredTokenException and retryable is set to true', async () => {
+      const error = {
+        providerError: {
+          statusCode: 400,
+          retryable: true,
+          code: 'ExpiredTokenException',
+          message: 'Testing retry',
+        },
+      };
+      const sendFake = {
+        promise: sinon.stub(),
+      };
+      sendFake.promise.onFirstCall().rejects(error);
+      sendFake.promise.onSecondCall().resolves({});
+      class FakeS3 {
+        error() {
+          return sendFake;
+        }
+      }
+      const awsRequest = proxyquire('../../../../lib/aws/request', {
+        'aws-sdk': { S3: FakeS3 },
+      });
+      expect(awsRequest({ name: 'S3' }, 'error')).to.be.rejected;
+      return expect(sendFake.promise).to.have.been.calledOnce;
+    });
+
+    it('should expose non-retryable errors', async () => {
       const error = {
         statusCode: 500,
         message: 'Some error message',
+        code: 'SomeError',
       };
       class FakeS3 {
-        error() {
+        test() {
           return {
             promise: async () => {
               throw error;
@@ -246,7 +269,34 @@ describe('#request', () => {
       const awsRequest = proxyquire('../../../../lib/aws/request', {
         'aws-sdk': { S3: FakeS3 },
       });
-      return expect(awsRequest({ name: 'S3' }, 'error')).to.be.rejected;
+      await expect(awsRequest({ name: 'S3' }, 'test')).to.eventually.be.rejected.and.have.property(
+        'code',
+        'AWS_S3_TEST_SOME_ERROR'
+      );
+    });
+
+    it('should handle numeric error codes', async () => {
+      const error = {
+        statusCode: 500,
+        message: 'Some error message',
+        code: 500,
+      };
+      class FakeS3 {
+        test() {
+          return {
+            promise: async () => {
+              throw error;
+            },
+          };
+        }
+      }
+      const awsRequest = proxyquire('../../../../lib/aws/request', {
+        'aws-sdk': { S3: FakeS3 },
+      });
+      await expect(awsRequest({ name: 'S3' }, 'test')).to.eventually.be.rejected.and.have.property(
+        'code',
+        'AWS_S3_TEST_HTTP_500_ERROR'
+      );
     });
   });
 

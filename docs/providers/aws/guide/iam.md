@@ -24,12 +24,14 @@ All IAM-related properties of provider are grouped under `iam` property:
 provider:
   iam:
     role:
+      name: custom-role-name
+      path: /custom-role-path/
       statements:
-        - Effect: 'Allow',
-          Resource: '*',
-          NotAction: 'iam:DeleteUser',
+        - Effect: 'Allow'
+          Resource: '*'
+          Action: 'iam:DeleteUser'
       managedPolicies:
-        - 'arn:aws:iam::123456789012:user/*',
+        - 'arn:aws:iam::123456789012:user/*'
       permissionsBoundary: arn:aws:iam::123456789012:policy/boundaries
       tags:
         key: value
@@ -118,6 +120,21 @@ provider:
   iam:
     role:
       name: your-custom-name-${sls:stage}-role
+```
+
+### Path for the Default IAM Role
+
+By default, it will use a path of: `/`
+
+This can be overridden by setting `provider.iam.role.path`:
+
+```yml
+service: new-service
+
+provider:
+  iam:
+    role:
+      path: /your-custom-path/
 ```
 
 ## Custom IAM Roles

@@ -32,6 +32,12 @@ describe('test/unit/lib/configuration/variables/parse.test.js', () => {
         { sources: [{ type: 'type', address: { value: 'address' } }] },
       ]));
 
+    // ${type:address:with:colons}
+    it('should support type and address with colons', () =>
+      expect(parse('${type:address:with:colons}')).to.deep.equal([
+        { sources: [{ type: 'type', address: { value: 'address:with:colons' } }] },
+      ]));
+
     // ${type(param)}
     it('should support param', () =>
       expect(parse('${type(param)}')).to.deep.equal([
@@ -394,12 +400,6 @@ describe('test/unit/lib/configuration/variables/parse.test.js', () => {
         .to.throw(ServerlessError)
         .with.property('code', 'INVALID_VARIABLE_TYPE'));
 
-    // ${type:foo:bar}
-    it('should reject ":" strings in address literal', () =>
-      expect(() => parse('${type:foo:bar}'))
-        .to.throw(ServerlessError)
-        .with.property('code', 'INVALID_VARIABLE_ADDRESS'));
-
     // ${type:address
     it('should detect not closed variable', () => {
       expect(() => parse('${type:address'))
@@ -543,8 +543,8 @@ describe('test/unit/lib/configuration/variables/parse.test.js', () => {
       expect(parse('e\\${s:}n\\$${s:}qe\\\\\\${s:}qn\\\\${s:}')).to.deep.equal([
         {
           start: 1,
-          end: 2,
-          value: '',
+          end: 3,
+          value: '$',
         },
         {
           start: 10,
@@ -553,8 +553,8 @@ describe('test/unit/lib/configuration/variables/parse.test.js', () => {
         },
         {
           start: 17,
-          end: 20,
-          value: '\\',
+          end: 21,
+          value: '\\$',
         },
         {
           start: 27,

@@ -35,7 +35,7 @@ Lambda@Edge has four options when the Lambda function is triggered
 
 **MEMORY AND TIMEOUT LIMITS:** According to [AWS Limits on Lambda@Edge](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/cloudfront-limits.html#limits-lambda-at-edge) the limits for viewer-request and viewer-response are 128MB memory and 5 seconds timeout and for origin-request and origin-response are 3008MB memory and 30 seconds timeout.
 
-**RUNTIME LIMITS:** According to [AWS Requirements on Lambda@Edge](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-requirements-limits.html) the runtimes supported by Lambda@Edge functions are: `Python 3.8`, `Python 3.7`, `Node.js 12.x`, `Node.js 10.x`.
+**RUNTIME LIMITS:** According to [AWS Requirements on Lambda@Edge](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-requirements-limits.html) the runtimes supported by Lambda@Edge functions are: `Python 3.8`, `Python 3.7`, `Node.js 14.x`, `Node.js 12.x`, `Node.js 10.x`.
 
 ## Simple event definition
 
@@ -236,6 +236,20 @@ functions:
           origin: s3://bucketname.s3.amazonaws.com/files
           cachePolicy:
             id: 658327ea-f89d-4fab-a63d-7e88639e58f6 # references AWS Managed Policy named Managed-CachingOptimized
+```
+
+It is also possible to reference policies with `behavior.CachePolicyId` property. When both `cachePolicy.id` and `behavior.CachePolicyId` are specified, setting from `cachePolicy.id` will be used. Similarily, when `cachePolicy.name` and `behavior.CachePolicyId` are specified, setting from `cachePolicy.name` will be used.
+
+```yml
+functions:
+  myLambdaAtEdge:
+    handler: myLambdaAtEdge.handler
+    events:
+      - cloudFront:
+          eventType: viewer-response
+          origin: s3://bucketname.s3.amazonaws.com/files
+          behavior:
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # references AWS Managed Policy named Managed-CachingOptimized
 ```
 
 ### CloudFront Distribution configurations

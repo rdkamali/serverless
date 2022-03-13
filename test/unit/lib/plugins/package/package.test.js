@@ -2,7 +2,7 @@
 
 const chai = require('chai');
 const Package = require('../../../../../lib/plugins/package/package');
-const Serverless = require('../../../../../lib/Serverless');
+const Serverless = require('../../../../../lib/serverless');
 const sinon = require('sinon');
 
 // Configure chai
@@ -16,7 +16,7 @@ describe('Package', () => {
   let pkg;
 
   beforeEach(() => {
-    serverless = new Serverless();
+    serverless = new Serverless({ commands: ['print'], options: {}, serviceDir: null });
     return serverless.init().then(() => {
       options = {
         stage: 'dev',

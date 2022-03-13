@@ -18,9 +18,6 @@ Variables allow users to dynamically replace config values in `serverless.yml` c
 
 They are especially useful when providing secrets for your service to use and when you are working with multiple stages.
 
-If `unresolvedVariablesNotificationMode` is set to `error`, references to variables that cannot be resolved will result in an error being thrown.
-This will become the default behaviour in the next major version.
-
 ## Syntax
 
 To use variables, you will need to reference values enclosed in `${}` brackets.
@@ -38,20 +35,19 @@ You can define your own variable syntax (regex) if it conflicts with CloudFormat
 
 ## Current variable sources:
 
+- [Other properties defined in `serverless.yml`](#reference-properties-in-serverlessyml)
 - [Serverless Core variables](#referencing-serverless-core-variables)
 - [Environment variables](#referencing-environment-variables)
+- [Parameters](#referencing-parameters)
 - [CLI options](#referencing-cli-options)
-- [Other properties defined in `serverless.yml`](#reference-properties-in-serverlessyml)
-- [External YAML/JSON files](#reference-variables-in-other-files)
+- [External YAML/JSON files](#reference-properties-in-other-files)
 - [Variables from S3](#referencing-s3-objects)
 - [Variables from AWS SSM Parameter Store](#reference-variables-using-the-ssm-parameter-store)
 - [Variables from AWS Secrets Manager](#reference-variables-using-aws-secrets-manager)
 - [CloudFormation stack outputs](#reference-cloudformation-outputs)
 - [Properties exported from Javascript files (sync or async)](#reference-variables-in-javascript-files)
-- [Pseudo Parameters Reference](#pseudo-parameters-reference)
 - [Read String Variable Values as Boolean Values](#read-string-variable-values-as-boolean-values)
-
-## Casting string variables to boolean values
+- [Pseudo Parameters Reference](#aws-cloudformation-pseudo-parameters-and-intrinsic-functions)
 
 ## Recursively reference properties
 
@@ -160,9 +156,23 @@ functions:
 
 In the above example you're dynamically adding a prefix to the function names by referencing the `FUNC_PREFIX` env var. So you can easily change that prefix for all functions by changing the `FUNC_PREFIX` env var.
 
+## Referencing Parameters
+
+Parameters can be defined in `serverless.yml` under the `params` key, or in [Serverless Dashboard](https://www.serverless.com/secrets).
+
+To reference parameters, use the `${param:XXX}` syntax in `serverless.yml`.
+
+```yaml
+provider:
+  environment:
+    APP_DOMAIN: ${param:domain}
+```
+
+Read all about parameters in the [Parameters documentation](../../../guides/parameters.md).
+
 ## Referencing CLI Options
 
-To reference CLI options that you passed, use the `${opt:some_option}` syntax in your `serverless.yml` configuration file. It is valid to use the empty string in place of `some_option`. This looks like "`${opt:}`" and the result of declaring this in your `serverless.yml` is to embed the complete `options` object (i.e. all the command line options from your `serverless` command).
+To reference CLI options that you passed, use the `${opt:<option>}` syntax in your `serverless.yml` configuration file. It is valid to use the empty string in place of `<option>`. This looks like "`${opt:}`" and the result of declaring this in your `serverless.yml` is to embed the complete `options` object (i.e. all the command line options from your `serverless` command).
 
 ```yml
 service: new-service
@@ -301,21 +311,49 @@ functions:
     handler: handler.hello
 ```
 
+## Referencing AWS-specific variables
+
+You can reference AWS-specific values as the source of your variables. Those values are exposed via the Serverless Variables system through the `{aws:}` variable prefix.
+
+The following variables are available:
+
+**accountId**
+
+Account ID of you AWS Account, based on the AWS Credentials that you have configured.
+
+```yml
+service: new-service
+provider:
+  name: aws
+
+functions:
+  func1:
+    name: function-1
+    handler: handler.func1
+    environment:
+      ACCOUNT_ID: ${aws:accountId}
+```
+
+**region**
+
+The region used by the Serverless CLI. The `${aws:region}` variable is a shortcut for `${opt:region, self:provider.region, "us-east-1"}`.
+
 ### Resolution of non plain string types
 
-New variable resolver, ensures that automatically other types as `SecureString` and `StringList` are resolved into expected forms.
-
-For that please ensure to add `variablesResolutionMode: 20210326` to your service configuration.
+Other types as `SecureString` and `StringList` are automatically resolved into expected forms.
 
 #### Auto decrypting of `SecureString` type parameters.
 
 All `SecureString` type parameters are automatically decrypted, and automatically parsed if they export stringified JSON content (Note: you can turn off parsing by passing `raw` instruction into variable as: `${ssm(raw):/path/to/secureparam}`, if you need to also pass custom region, put it first as: `${ssm(eu-west-1, raw):/path/to/secureparam}`)
 
+In order to get the encrypted content, you can pass `noDecrypt` instruction into variable as: `${ssm(noDecrypt):/path/to/secureparam}` (it can be passed aside of region param as e.g.: `${ssm(eu-west-1, noDecrypt):/path/to/secureparam})`
+
+## Reference Variables using AWS Secrets Manager
+
 Variables in [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) can be referenced [using SSM](https://docs.aws.amazon.com/systems-manager/latest/userguide/integration-ps-secretsmanager.html), just use the `ssm:/aws/reference/secretsmanager/secret_ID_in_Secrets_Manager` syntax. For example:
 
 ```yml
 service: new-service
-variablesResolutionMode: 20210326
 provider: aws
 functions:
   hello:
@@ -345,7 +383,6 @@ variables will be resolved like
 
 ```yml
 service: new-service
-variablesResolutionMode: 20210326
 provider: aws
 functions:
   hello:
@@ -366,7 +403,6 @@ Same `StringList` type parameters are automatically detected and resolved to arr
 
 ```yml
 service: new-service
-variablesResolutionMode: 20210326
 provider: aws
 functions:
   hello:
@@ -376,9 +412,13 @@ custom:
   myArrayVar: ${ssm:/path/to/stringlistparam}
 ```
 
-## Reference Variables in Other Files
+## Reference Properties in Other Files
 
-You can reference variables in other YAML or JSON files. To reference variables in other YAML files use the `${file(./myFile.yml):someProperty}` syntax in your `serverless.yml` configuration file. To reference variables in other JSON files use the `${file(./myFile.json):someProperty}` syntax. It is important that the file you are referencing has the correct suffix, or file extension, for its file type (`.yml` for YAML or `.json` for JSON) in order for it to be interpreted correctly. Here's an example:
+You can reference properties in other YAML or JSON files. To reference properties in other YAML files use the `${file(./myFile.yml):someProperty}` syntax in your `serverless.yml` configuration file.
+
+To reference properties in other JSON files use the `${file(./myFile.json):someProperty}` syntax. It is important that the file you are referencing has the correct suffix, or file extension, for its file type (`.yml` for YAML or `.json` for JSON) in order for it to be interpreted correctly.
+
+Here's an example:
 
 ```yml
 # myCustomFile.yml
@@ -472,115 +512,53 @@ functions:
 
 ### Exporting a function
 
-With a new variables resolver (_which will be the only used resolver in v3 of a Framework, and which can be turned on now by setting `variablesResolutionMode: 20210326` in service config_) functions receives an object, with two properties:
+_Note: the method described below works by default in Serverless v3, but it requires the `variablesResolutionMode: 20210326` option in v2._
+
+A variable resolver function receives an object with the following properties:
 
 - `options` - An object referencing resolved CLI params as passed to the command
+- `resolveVariable(variableString)` - Async function which resolves provided variable string. String should be passed without wrapping (`${` and `}`) braces. Example valid values:
+  - `file(./config.js):SOME_VALUE`
+  - `env:SOME_ENV_VAR, null` (end with `, null`, if missing value at the variable source should be resolved with `null`, and not with a thrown error)
 - `resolveConfigurationProperty([key1, key2, ...keyN])` - Async function which resolves specific service configuration property. It returns a fully resolved value of configuration property. If circular reference is detected resolution will be rejected.
 
-Example, of how to obtain a value of AWS region that will be used by Serverless Framework:
+The resolver function can either be _sync_ or _async_. Note that both `resolveConfigurationProperty` and `resolveVariable` functions are async: if these functions are called, the resolver function must be async.
+
+Here is an example of a resolver function:
 
 ```js
-// config.js (when relying on new variables resolver)
-module.exports = async ({ options, resolveConfigurationProperty }) => {
-  let region = options.region;
-  if (!region) {
-    region = await resolveConfigurationProperty(['provider', 'region']);
-    if (!region) region = 'us-east-1'; // Framework default
-  }
+// config.js
+module.exports = async ({ options, resolveVariable }) => {
+  // We can resolve other variables via `resolveVariable`
+  const stage = await resolveVariable('sls:stage');
+  const region = await resolveVariable('opt:region, self:provider.region, "us-east-1"');
   ...
+
+  // Resolver may return any JSON value (null, boolean, string, number, array or plain object)
+  return {
+    prop1: 'someValue',
+    prop2: 'someOther value'
+  }
 }
 ```
 
-In the old legacy resolver (which is deprecated, but stays as default in v2) function receives a reference to the Serverless object containing your configuration.
-
-_**Notice:** Configuration is yet in unresolved state, so any properties configured with variables may still be presented with variables in it_
-
-```js
-// config.js (when relying on legacy resolver)
-module.exports = (serverless) => {
-  serverless.cli.consoleLog('You can access Serverless config at serverless.configrationInput');
-
-  return {
-    property1: 'some value',
-    property2: 'some other value',
-  };
-};
-```
+It is possible to reference the resolver's returned value:
 
 ```yml
 # serverless.yml
 service: new-service
-provider: aws
 
 custom: ${file(./config.js)}
 ```
 
-You can also return an object and reference a specific property. Just make sure you are returning a valid object and referencing a valid property:
+Or a single property (if the resolver returned an object):
 
 ```yml
 # serverless.yml
 service: new-service
-provider: aws
-functions:
-  scheduledFunction:
-    handler: handler.scheduledFunction
-    events:
-      - schedule: ${file(./myCustomFile.js):schedule.ten}
-```
 
-```js
-// myCustomFile.js
-module.exports.schedule = () => {
-  // Code that generates dynamic data
-  return {
-    ten: 'rate(10 minutes)',
-    twenty: 'rate(20 minutes)',
-    thirty: 'rate(30 minutes)',
-  };
-};
-```
-
-If your use case requires handling dynamic/async data sources (ie. DynamoDB, API calls...etc), you can also return a Promise that would be resolved as the value of the variable:
-
-```yml
-# serverless.yml
-service: new-service
-provider: aws
-functions:
-  scheduledFunction:
-    handler: handler.scheduledFunction
-    events:
-      - schedule: ${file(./myCustomFile.js):promised}
-```
-
-```js
-// myCustomFile.js
-module.exports.promised = () => {
-  // Async code that fetches the rate config...
-  return Promise.resolve('rate(10 minutes)');
-};
-```
-
-For example, in such helper you could call AWS SDK to get account details:
-
-```js
-// myCustomFile.js
-const { STS } = require('aws-sdk');
-const sts = new STS();
-
-module.exports.getAccountId = async () => {
-  // Checking AWS user details
-  const { Account } = await sts.getCallerIdentity().promise();
-  return Account;
-};
-```
-
-```yml
-# serverless.yml
-service: new-service
-provider: aws
 custom:
-  accountId: ${file(./myCustomFile.js):getAccountId}
+  foo: ${file(./config.js):prop1}
 ```
 
 ## Multiple Configuration Files
@@ -675,11 +653,15 @@ provider:
     apiGateway: ${strToBool(${ssm:API_GW_DEBUG_ENABLED})}
 ```
 
-These are examples that explain how the conversion works:
+These are examples that explain how the conversion works after first lowercasing the passed string value:
 
 ```plaintext
 ${strToBool(true)} => true
 ${strToBool(false)} => false
+${strToBool(True)} => true
+${strToBool(False)} => false
+${strToBool(TRUE)} => true
+${strToBool(FALSE)} => false
 ${strToBool(0)} => false
 ${strToBool(1)} => true
 ${strToBool(2)} => Error

@@ -18,11 +18,18 @@ describe('test/unit/lib/configuration/variables/sources/file.test.js', () => {
       json: '${file(file.json)}',
       tfstate: '${file(file.tfstate)}',
       js: '${file(file.js)}',
-      variablesResolutionMode: '20210326',
+      cjs: '${file(file.cjs)}',
       jsFunction: '${file(file-function.js)}',
       jsPropertyFunction: '${file(file-property-function.js):property}',
       jsPropertyFunctionProperty: '${file(file-property-function.js):property.result}',
       addressSupport: '${file(file.json):result}',
+      jsFunctionResolveVariable: '${file(file-function-variable.js)}',
+      jsFunctionResolveVariableMissingSource: '${file(file-function-variable-missing-source.js)}',
+      jsFunctionResolveManyVariables: '${file(file-function-many-variables.js)}',
+      jsPropertyFunctionResolveVariable: '${file(file-property-function-variable.js):property}',
+      jsPropertyFunctionResolveVariableMissingSource:
+        '${file(file-property-function-variable-missing-source.js):property}',
+      nestedVariablesAddressResolution: '${file(file-variables-nest-1.yaml):n1.n2.n3}',
       nonExistingYaml: '${file(not-existing.yaml), null}',
       nonExistingJson: '${file(not-existing.json), null}',
       nonExistingJs: '${file(not-existing.js), null}',
@@ -43,7 +50,6 @@ describe('test/unit/lib/configuration/variables/sources/file.test.js', () => {
       notFile: '${file(dir.yaml)}',
       noParams: '${file:}',
       noParams2: '${file():}',
-      external: '${file(../file.test.js)}',
       invalidYaml: '${file(invalid.yml)}',
       invalidJson: '${file(invalid.json)}',
       invalidJs: '${file(invalid.js)}',
@@ -77,6 +83,9 @@ describe('test/unit/lib/configuration/variables/sources/file.test.js', () => {
   it('should resolve "js" file sources', () =>
     expect(configuration.js).to.deep.equal({ result: 'js' }));
 
+  it('should resolve "cjs" file sources', () =>
+    expect(configuration.cjs).to.deep.equal({ result: 'cjs' }));
+
   it('should support function resolvers in "js" file sources', () =>
     expect(configuration.jsFunction).to.deep.equal({ result: 'js-function' }));
 
@@ -89,6 +98,21 @@ describe('test/unit/lib/configuration/variables/sources/file.test.js', () => {
   it('should support "address" argument', () =>
     expect(configuration.addressSupport).to.equal('json'));
 
+  it('should support internal variable resolution', () => {
+    expect(configuration.jsFunctionResolveVariable).to.deep.equal({
+      varResult: { result: 'yaml' },
+    });
+    expect(configuration.jsPropertyFunctionResolveVariable).to.deep.equal({
+      varResult: { result: 'json' },
+    });
+    expect(configuration.jsFunctionResolveManyVariables).to.deep.equal({
+      varResult: { result: ['yml', 'yml', 'yml', 'yml', 'yml', 'yml', 'yml', 'yml', 'yml', 'yml'] },
+    });
+  });
+
+  it('should resolve variables across address resolution', () => {
+    expect(configuration.nestedVariablesAddressResolution).to.deep.equal('result');
+  });
   it('should uncoditionally split "address" property keys by "."', () =>
     expect(configuration.ambiguousAddress).to.equal('object'));
 
@@ -160,9 +184,6 @@ describe('test/unit/lib/configuration/variables/sources/file.test.js', () => {
     expect(variablesMeta.get('noParams2').error.code).to.equal('VARIABLE_RESOLUTION_ERROR');
   });
 
-  it('should report with an error attempt to access external path', () =>
-    expect(variablesMeta.get('external').error.code).to.equal('VARIABLE_RESOLUTION_ERROR'));
-
   it('should report with an error an invalid YAML file', () =>
     expect(variablesMeta.get('invalidYaml').error.code).to.equal('VARIABLE_RESOLUTION_ERROR'));
 
@@ -174,23 +195,29 @@ describe('test/unit/lib/configuration/variables/sources/file.test.js', () => {
     expect(variablesMeta.get('invalidJs2').error.code).to.equal('VARIABLE_RESOLUTION_ERROR');
   });
 
-  it('should not support function resolvers in "js" file sources not confirmed to work with new resolver', async () => {
+  it('should report with an error if JS function attempts to resolve missing source', () =>
+    expect(variablesMeta.get('jsFunctionResolveVariableMissingSource').error.code).to.equal(
+      'MISSING_VARIABLE_RESULT'
+    ));
+
+  it('should report with an error if JS function property attempts to resolve missing source', () =>
+    expect(variablesMeta.get('jsPropertyFunctionResolveVariableMissingSource').error.code).to.equal(
+      'MISSING_VARIABLE_RESULT'
+    ));
+
+  it('should support reaching out beyond service directory', async () => {
     configuration = {
-      jsFunction: '${file(file-function.js)}',
-      jsPropertyFunction: '${file(file-property-function.js):property}',
+      yml: '${file(../file.yml)}',
     };
     variablesMeta = resolveMeta(configuration);
     await resolve({
-      serviceDir,
+      serviceDir: path.resolve(serviceDir, 'foo'),
       configuration,
       variablesMeta,
       sources: { file: fileSource },
       options: {},
       fulfilledSources: new Set(['file']),
     });
-    expect(variablesMeta.get('jsFunction').error.code).to.equal('VARIABLE_RESOLUTION_ERROR');
-    expect(variablesMeta.get('jsPropertyFunction').error.code).to.equal(
-      'VARIABLE_RESOLUTION_ERROR'
-    );
+    expect(configuration.yml).to.deep.equal({ result: 'yml' });
   });
 });

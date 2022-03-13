@@ -2,7 +2,7 @@
 
 const AwsProvider = require('../../../../../lib/plugins/aws/provider');
 const AwsRollback = require('../../../../../lib/plugins/aws/rollback');
-const Serverless = require('../../../../../lib/Serverless');
+const Serverless = require('../../../../../lib/serverless');
 const expect = require('chai').expect;
 const assert = require('chai').assert;
 const sinon = require('sinon');
@@ -15,7 +15,7 @@ describe('AwsRollback', () => {
   let provider;
 
   const createInstance = (options) => {
-    serverless = new Serverless();
+    serverless = new Serverless({ commands: [], options: {} });
     provider = new AwsProvider(serverless, options);
     serverless.setProvider('aws', provider);
     serverless.service.service = 'rollback';
@@ -91,8 +91,7 @@ describe('AwsRollback', () => {
       const s3Objects = [
         {
           // eslint-disable-next-line max-len
-          Key:
-            'serverless/rollback/dev/1476779096930-2016-10-18T08:24:56.930Z/compiled-cloudformation-template.json',
+          Key: 'serverless/rollback/dev/1476779096930-2016-10-18T08:24:56.930Z/compiled-cloudformation-template.json',
         },
         {
           Key: 'serverless/rollback/dev/1476779096930-2016-10-18T08:24:56.930Z/test.zip',
@@ -124,8 +123,8 @@ describe('AwsRollback', () => {
         .then(() => {
           assert.isNotOk(true, 'setStackToUpdate should not resolve');
         })
-        .catch((errorMessage) => {
-          expect(errorMessage).to.include("Couldn't find any existing deployments");
+        .catch((error) => {
+          expect(error.code).to.equal('ROLLBACK_DEPLOYMENTS_NOT_FOUND');
           expect(listObjectsStub.calledOnce).to.be.equal(true);
           expect(
             listObjectsStub.calledWithExactly('S3', 'listObjectsV2', {
@@ -141,8 +140,7 @@ describe('AwsRollback', () => {
       const s3Objects = [
         {
           // eslint-disable-next-line max-len
-          Key:
-            'serverless/rollback/dev/2000000000000-2016-10-18T08:24:56.930Z/compiled-cloudformation-template.json',
+          Key: 'serverless/rollback/dev/2000000000000-2016-10-18T08:24:56.930Z/compiled-cloudformation-template.json',
         },
         {
           Key: 'serverless/rollback/dev/2000000000000-2016-10-18T08:24:56.930Z/test.zip',
@@ -159,8 +157,8 @@ describe('AwsRollback', () => {
         .then(() => {
           assert.isNotOk(true, 'setStackToUpdate should not resolve');
         })
-        .catch((errorMessage) => {
-          expect(errorMessage).to.include("Couldn't find a deployment for the timestamp");
+        .catch((error) => {
+          expect(error.code).to.equal('ROLLBACK_DEPLOYMENT_NOT_FOUND');
           expect(listObjectsStub.calledOnce).to.be.equal(true);
           expect(
             listObjectsStub.calledWithExactly('S3', 'listObjectsV2', {
@@ -176,8 +174,7 @@ describe('AwsRollback', () => {
       const s3Objects = [
         {
           // eslint-disable-next-line max-len
-          Key:
-            'serverless/rollback/dev/1476779096930-2016-10-18T08:24:56.930Z/compiled-cloudformation-template.json',
+          Key: 'serverless/rollback/dev/1476779096930-2016-10-18T08:24:56.930Z/compiled-cloudformation-template.json',
         },
         {
           Key: 'serverless/rollback/dev/1476779096930-2016-10-18T08:24:56.930Z/test.zip',
@@ -193,7 +190,6 @@ describe('AwsRollback', () => {
         expect(awsRollback.serverless.service.package.artifactDirectoryName).to.be.equal(
           'serverless/rollback/dev/1476779096930-2016-10-18T08:24:56.930Z'
         );
-        expect(listObjectsStub.calledOnce).to.be.equal(true);
         expect(
           listObjectsStub.calledWithExactly('S3', 'listObjectsV2', {
             Bucket: awsRollback.bucketName,

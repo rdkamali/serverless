@@ -50,18 +50,72 @@ serverless invoke local -f functionName -d '{ "data": "hello world" }'
 
 ```bash
 serverless invoke local -f functionName -p path/to/file.json
-
 # OR
-
 serverless invoke local -f functionName -p path/to/file.yaml
 ```
 
 ### Local function invocation, setting environment variables
 
-```bash
+````bash
 serverless invoke local -f functionName -e VAR1=value1
-
 # Or more than one variable
-
 serverless invoke local -f functionName -e VAR1=value1 -e VAR2=value2
+
+## Event vs Http
+
+Cloud functions can be triggered by events or http. Those two types of functions have different signatures.
+The data you can provide to a local invocation of a function are also different according to their types.
+
+### Event
+
+The signature of the function is
+```js
+function eventHandler (event, context, callback) {}
 ```
+
+The data provided through `data` or loaded through `path` will be in `event`.
+
+The data provided through `context` or loaded through `contextPath` will be in `context`.
+
+### Http
+
+The function use express, its signature is
+
+```js
+function httpHandler(req, res) {}
+```
+
+The data provided through `data` or loaded through `path` will be merged in `req`.
+
+The data provided through `context` or loaded through `contextPath` will be ignored.
+
+Example:
+
+```json
+# mocks/postHelloWorld.json
+{
+  "method": "POST",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": {
+    "message": "Hello World"
+  }
+}
+```
+
+```bash
+serverless invoke local -f httpHandler -p mocks/postHelloWorld.json
+```
+will invoke `httpHandler` with an express request with the provided headers and body
+
+## Resource permissions
+
+When a cloud function is executed in the cloud, the Google SDK will implicitly resolve its [runtime service account](https://cloud.google.com/functions/docs/concepts/iam#runtime_service_accounts).
+which will be used to interact with the other GCP services.
+
+When you locally invoke a cloud function, the Google SDK will also implicitly resolve a service account or a user.
+Make sure you are authenticated with your user or a service account following the [authentication procedure](https://www.serverless.com/framework/docs/providers/google/guide/credentials/)
+and that the authenticated account have the necessary rights to access to all services you want your function to access
+
+````

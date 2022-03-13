@@ -6,7 +6,7 @@ layout: Doc
 
 # Components 最佳实践
 
-**Serverless Components** 是 **[Serverless Framework](https://github.com/serverless/serverless/blob/master/README_CN.md)** 重磅推出的基础设置编排能力，支持开发者通过 **Serverless Components** 构建，组合并部署你的 Serverless 应用。
+**Serverless Components** 是 **[Serverless Framework](https://github.com/serverless/serverless/blob/main/README_CN.md)** 重磅推出的基础设置编排能力，支持开发者通过 **Serverless Components** 构建，组合并部署你的 Serverless 应用。
 
 - - [x] **快速部署 -** Components 支持极速部署 Serverless 架构和应用
 - - [x] **全面覆盖 -** 既能支持基础设施的 Components，也可以支持更高维度的，场景级别的 Components。
@@ -23,7 +23,7 @@ $ npm i -g serverless
 
 **确保你使用的是 Serverless Framework 1.49 及以上的版本**。更早的版本无法支持 Serverless Components Beta。
 
-之后，通过 `create --template-url` 命令安装一个 [Serverless Components 模板](./templates)，模板中会包含了 Componenets 及示例代码，可以让你更快的了解 Component。
+之后，通过 `create --template-url` 命令安装一个 [Serverless Components 模板](./templates)，模板中会包含了 Components 及示例代码，可以让你更快的了解 Component。
 
 以下是一些常用的用例模板：
 

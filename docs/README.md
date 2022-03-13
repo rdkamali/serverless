@@ -1,6 +1,6 @@
 <!--
 title: Serverless Framework Documentation
-menuText: Docs
+menuText: Overview
 layout: Doc
 menuItems:
   - {menuText: "Get Started", path: /framework/docs/getting-started/}
@@ -13,7 +13,7 @@ menuItems:
   - {menuText: "- Access Roles", path: /framework/docs/guides/access-roles/}
   - {menuText: "- Profiles", path: /framework/docs/guides/profiles/}
   - {menuText: "- Pipelines", path: /framework/docs/guides/pipelines/}
-  - {menuText: "Provider CLI References", path: /framework/docs/providers}
+  - {menuText: "Provider References", path: /framework/docs/providers}
   - {menuText: "- AWS", path: /framework/docs/providers/aws/}
   - {menuText: "- Azure", path: /framework/docs/providers/azure/}
   - {menuText: "- fn", path: /framework/docs/providers/fn/}
@@ -47,7 +47,7 @@ If you prefer to start on the CLI, use our [get started](https://serverless.com/
 
 **If you are an experienced user of the Serverless Framework**
 
-Our [Pro dashboard](https://serverless.com/pro/) allows you to import existing projects. Track performance, troubleshoot, configure CI/CD and deployment policies, and get end-to-end serverless application lifecycle management.
+Our [hosted dashboard](https://app.serverless.com/) allows you to import existing projects. Track performance, troubleshoot, configure CI/CD and deployment policies, and get end-to-end serverless application lifecycle management.
 [Get started](https://app.serverless.com) for free.
 
 Have questions? Visit our [Forum](https://forum.serverless.com/).

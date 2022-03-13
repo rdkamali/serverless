@@ -13,7 +13,7 @@ layout: Doc
 
 # Hello World Python Example
 
-Make sure `serverless` is installed. [See installation guide](../../../guide/installation.md).
+Make sure `serverless` is installed. [See installation guide](https://www.serverless.com/framework/docs/getting-started).
 
 Once installed the Serverless CLI can be called with `serverless` or the shorthand `sls` command.
 
@@ -29,8 +29,8 @@ Commands
 
 ## 1. Create a service
 
-```
-sls create --template aws-python --path myService
+```bash
+sls create --template aws-python3 --path myService
 ```
 
 Using the `create` command we can specify one of the available [templates](https://serverless.com/framework/docs/providers/aws/cli-reference/create#available-templates). For this example use aws-python with the `--template` or shorthand `-t` flag.
@@ -39,7 +39,7 @@ The `--path` or shorthand `-p` is the location to be created with the template s
 
 ## 2. Deploy
 
-```
+```bash
 sls deploy
 ```
 
@@ -47,7 +47,7 @@ This will deploy your function to AWS Lambda based on the settings in `serverles
 
 ## 3. Invoke deployed function
 
-```
+```bash
 sls invoke -f hello
 ```
 
@@ -55,10 +55,10 @@ Invoke deployed function with command `invoke` and `--function` or shorthand `-f
 
 In your terminal window you should see the response from AWS Lambda.
 
-```bash
+```json
 {
-    "statusCode": 200,
-    "body": "{\"message\":\"Go Serverless v1.0! Your function executed successfully!\",\"input\":{}}"
+  "statusCode": 200,
+  "body": "{\"message\":\"Go Serverless v1.0! Your function executed successfully!\",\"input\":{}}"
 }
 ```
 

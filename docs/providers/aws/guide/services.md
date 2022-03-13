@@ -24,18 +24,22 @@ In the beginning of an application, many people use a single Service to define a
 
 ```bash
 myService/
-  serverless.yml  # Contains all functions and infrastructure resources
+  # Contains all functions and infrastructure resources
+  serverless.yml
 ```
 
 However, as your application grows, you can break it out into multiple services. A lot of people organize their services by workflows or data models, and group the functions related to those workflows and data models together in the service.
 
 ```bash
 users/
-  serverless.yml # Contains 4 functions that do Users CRUD operations and the Users database
+  # Contains 4 functions that do Users CRUD operations and the Users database
+  serverless.yml
 posts/
-  serverless.yml # Contains 4 functions that do Posts CRUD operations and the Posts database
+  # Contains 4 functions that do Posts CRUD operations and the Posts database
+  serverless.yml
 comments/
-  serverless.yml # Contains 4 functions that do Comments CRUD operations and the Comments database
+  # Contains 4 functions that do Comments CRUD operations and the Comments database
+  serverless.yml
 ```
 
 This makes sense since related functions usually use common infrastructure resources, and you want to keep those functions and resources together as a single unit of deployment, for better organization and separation of concerns.
@@ -141,11 +145,11 @@ functions:
   usersCreate: # A Function
     handler: users.create
     events: # The Events that trigger this Function
-      - http: post users/create
+      - httpApi: 'POST /users/create'
   usersDelete: # A Function
     handler: users.delete
     events: # The Events that trigger this Function
-      - http: delete users/delete
+      - httpApi: 'DELETE /users/delete'
 
 # The "Resources" your "Functions" use.  Raw AWS CloudFormation goes in here.
 resources:
@@ -205,7 +209,7 @@ Check out the [deployment guide](https://serverless.com/framework/docs/providers
 
 To easily remove your Service from your AWS account, you can use the `remove` command.
 
-Run `serverless remove -v` to trigger the removal process. As in the deploy step we're also running in the `verbose` mode so you can see all details of the remove process.
+Run `serverless remove --verbose` to trigger the removal process. As in the deploy step we're also running in the `verbose` mode so you can see all details of the remove process.
 
 Serverless will start the removal and informs you about its process on the console. A success message is printed once the whole service is removed.
 
