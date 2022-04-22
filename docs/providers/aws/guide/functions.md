@@ -200,6 +200,91 @@ provider:
 
 See the documentation about [IAM](./iam.md) for function level IAM roles.
 
+## Lambda Function URLs
+
+A [Lambda Function URL](https://docs.aws.amazon.com/lambda/latest/dg/configuration-function-urls.html) is a simple solution to create HTTP endpoints with AWS Lambda. Function URLs are ideal for getting started with AWS Lambda, or for single-function applications like webhooks or APIs built with web frameworks.
+
+You can create a function URL via the `url` property in the function configuration in `serverless.yml`. By setting `url` to `true`, as shown below, the URL will be public without CORS configuration.
+
+```yaml
+functions:
+  func:
+    handler: index.handler
+    url: true
+```
+
+Alternatively, you can configure it as an object with the `authorizer` and/or `cors` properties. The `authorizer` property can be set to `aws_iam` to enable AWS IAM authorization on your function URL.
+
+```yaml
+functions:
+  func:
+    handler: index.handler
+    url:
+      authorizer: aws_iam
+```
+
+When using IAM authorization, the URL will only accept HTTP requests with AWS credentials allowing `lambda:InvokeFunctionUrl` (similar to [API Gateway IAM authentication](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-access-control-iam.html)).
+
+You can also configure [CORS headers](https://developer.mozilla.org/docs/Web/HTTP/CORS) so that your function URL can be called from other domains in browsers. Setting `cors` to `true` will allow all domains via the following CORS headers:
+
+```yaml
+functions:
+  func:
+    handler: index.handler
+    url:
+      cors: true
+```
+
+| Header                       | Value                                                                    |
+| :--------------------------- | :----------------------------------------------------------------------- |
+| Access-Control-Allow-Origin  | \*                                                                       |
+| Access-Control-Allow-Headers | Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token |
+| Access-Control-Allow-Methods | \*                                                                       |
+
+You can also additionally adjust your CORS configuration by setting `allowedOrigins`, `allowedHeaders`, `allowedMethods`, `allowCredentials`, `exposedResponseHeaders`, and `maxAge` properties as shown in example below.
+
+```yaml
+functions:
+  func:
+    handler: index.handler
+    url:
+      cors:
+        allowedOrigins:
+          - https://url1.com
+          - https://url2.com
+        allowedHeaders:
+          - Content-Type
+          - Authorization
+        allowedMethods:
+          - GET
+        allowCredentials: true
+        exposedResponseHeaders:
+          - Special-Response-Header
+        maxAge: 6000 # In seconds
+```
+
+In the table below you can find how the `cors` properties map to CORS headers
+
+| Configuration property | CORS Header                      |
+| :--------------------- | :------------------------------- |
+| allowedOrigins         | Access-Control-Allow-Origin      |
+| allowedHeaders         | Access-Control-Allow-Headers     |
+| allowedMethods         | Access-Control-Allow-Methods     |
+| allowCredentials       | Access-Control-Allow-Credentials |
+| exposedResponseHeaders | Access-Control-Expose-Headers    |
+| maxAge                 | Access-Control-Max-Age           |
+
+It is also possible to remove the values in CORS configuration that are set by default by setting them to `null` instead.
+
+```yaml
+functions:
+  func:
+    handler: index.handler
+    url:
+      cors:
+        allowedHeaders: null
+```
+
 ## Referencing container image as a target
 
 Alternatively lambda environment can be configured through docker images. Image published to AWS ECR registry can be referenced as lambda source (check [AWS Lambda – Container Image Support](https://aws.amazon.com/blogs/aws/new-for-aws-lambda-container-image-support/)). In addition, you can also define your own images that will be built locally and uploaded to AWS ECR registry.
@@ -506,11 +591,16 @@ By default, the framework will create LogGroups for your Lambdas. This makes it 
 
 You can opt out of the default behavior by setting `disableLogs: true`
 
+You can also specify the duration for CloudWatch log retention by setting `logRetentionInDays`.
+
 ```yml
 functions:
   hello:
     handler: handler.hello
     disableLogs: true
+  goodBye:
+    handler: handler.goodBye
+    logRetentionInDays: 14
 ```
 
 ## Versioning Deployed Functions
@@ -621,7 +711,7 @@ When intention is to invoke function asynchronously you may want to configure fo
 
 [destination targets](https://docs.aws.amazon.com/lambda/latest/dg/invocation-async.html#invocation-async-destinations)
 
-Target can be the other lambdas you also deploy with a service or other qualified target (externally managed lambda, EventBridge event bus, SQS queue or SNS topic) which you can address via its ARN
+Target can be the other lambdas you also deploy with a service or other qualified target (externally managed lambda, EventBridge event bus, SQS queue or SNS topic) which you can address via its ARN or reference
 
 ```yml
 functions:
@@ -630,6 +720,14 @@ functions:
     destinations:
       onSuccess: otherFunctionInService
       onFailure: arn:aws:sns:us-east-1:xxxx:some-topic-name
+  asyncGoodBye:
+    handler: handler.asyncGoodBye
+    destinations:
+      onFailure:
+        # For the case using CF intrinsic function for `arn`, to ensure target execution permission exactly, you have to specify `type` from 'sns', 'sqs', 'eventBus', 'function'.
+        type: sns
+        arn:
+          Ref: SomeTopicName
 ```
 
 ### Maximum Event Age and Maximum Retry Attempts
@@ -665,7 +763,20 @@ functions:
         - securityGroupId1
       subnetIds:
         - subnetId1
-``**
+```
+
+## Ephemeral storage
+
+By default, Lambda [allocates 512 MB of ephemeral storage](https://docs.aws.amazon.com/lambda/latest/dg/configuration-function-common.html#configuration-ephemeral-storage) in functions under the `/tmp` directory.
+
+You can increase its size via the `ephemeralStorageSize` property. It should be a numerical value in MBs, between 512 and 10240.
+
+```yml
+functions:
+  helloEphemeral:
+    handler: handler.handler
+    ephemeralStorageSize: 1024
+```
 
 ## Lambda Hashing Algorithm migration
 
@@ -686,8 +797,3 @@ If you do not want to temporarily override descriptions of your functions or wou
 - Ensure that code for all your functions will change during deployment, remove `provider.lambdaHashingVersion` from your configuration, and run `sls deploy`. Due to the fact that all functions have code changed, all your functions will be migrated to new hashing algorithm. Please note that the change can be caused by e.g. upgrading a dependency used by all your functions so you can pair it with regular chores.
 - Add a dummy file that will be included in deployment artifacts for all your functions, remove `provider.lambdaHashingVersion` from your configuration, and run `sls deploy`. Due to the fact that all functions have code changed, all your functions will be migrated to new hashing algorithm.
 - If it is safe in your case (e.g. it's only development sandbox), you can also tear down the whole service by `sls remove`, remove `provider.lambdaHashingVersion` from your configuration, and run `sls deploy`. Newly recreated environment will be using new hashing algorithm.
-
-
-
-
-```

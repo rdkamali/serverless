@@ -448,8 +448,12 @@ describe('#naming()', () => {
   describe('#getEndpointModelLogicalId()', () => {
     it('', () => {
       expect(
-        sdk.naming.getEndpointModelLogicalId('ResourceId', 'get', 'application/json')
-      ).to.equal('ApiGatewayMethodResourceIdGetApplicationJsonModel');
+        sdk.naming.getEndpointModelLogicalId(
+          'ResourceId',
+          'get',
+          'application/x-www-form-urlencoded'
+        )
+      ).to.equal('ApiGatewayMethodResourceIdGetApplicationXWwwFormUrlencodedModel');
     });
   });
 
@@ -1040,6 +1044,14 @@ describe('#naming()', () => {
     it('should normalize the name and append correct suffix', () => {
       expect(sdk.naming.getLambdaAuthorizerHttpApiPermissionLogicalId('authorizerName')).to.equal(
         'AuthorizerNameLambdaAuthorizerPermissionHttpApi'
+      );
+    });
+  });
+
+  describe('#getLambdaFnUrlPermissionLogicalId()', () => {
+    it('should normalize the name and append correct suffix', () => {
+      expect(sdk.naming.getLambdaFnUrlPermissionLogicalId('fnName')).to.equal(
+        'FnNameLambdaPermissionFnUrl'
       );
     });
   });

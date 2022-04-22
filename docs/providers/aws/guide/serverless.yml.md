@@ -540,8 +540,16 @@ provider:
     # Enable Websocket API logs
     # This can either be set to `websocket: true` to use defaults, or configured via subproperties.
     websocket:
-      # Log level to use for execution logging: INFO or ERROR.
+      # Enables HTTP access logs (default: true)
+      accessLogging: true
+      # Log format to use for access logs
+      format: 'requestId: $context.requestId'
+      # Enable execution logging (default: true)
+      executionLogging: true
+      # Log level to use for execution logging: INFO or ERROR
       level: INFO
+      # Log full requests/responses for execution logging (default: true)
+      fullExecutionData: true
 
     # Optional, whether to write CloudWatch logs for custom resource lambdas as added by the framework
     frameworkLambda: true
@@ -612,6 +620,8 @@ functions:
     # Function environment variables
     environment:
       APP_ENV_VARIABLE: FOOBAR
+    # Configure the size of ephemeral storage available to your Lambda function (in MBs, default: 512)
+    ephemeralStorageSize: 512
     # Override the Lambda function name
     name: ${sls:stage}-lambdaName
     description: My function
@@ -629,6 +639,8 @@ functions:
     kmsKeyArn: arn:aws:kms:us-east-1:XXXXXX:key/some-hash
     # Disable the creation of the CloudWatch log group
     disableLogs: false
+    # Duration for CloudWatch log retention (default: forever).
+    logRetentionInDays: 14
     tags: # Function specific tags
       foo: bar
     # VPC settings for this function
@@ -641,6 +653,21 @@ functions:
       subnetIds:
         - subnetId1
         - subnetId2
+    # Lambda URL definition for this function, optional
+    # Can be defined as `true` which will create URL without authorizer and cors settings
+    url:
+      authorizer: 'aws_iam' # Authorizer used for calls to Lambda URL
+      cors:  # CORS configuration for Lambda URL, can also be defined as `true` with default CORS configuration
+        allowedOrigins:
+          - *
+        allowedHeaders:
+          - Authorization
+        allowedMethods:
+          - GET
+        allowCredentials: true
+        exposedResponseHeaders:
+          - SomeHeader
+        maxAge: 3600
     # Packaging rules specific to this function
     package:
       # Directories and files to include in the deployed package
@@ -666,10 +693,14 @@ functions:
       - MyOtherThing
     # Lambda destination settings
     destinations:
-      # Function name or ARN of target (EventBridge/SQS/SNS topic)
+      # Function name or ARN (or reference) of target (EventBridge/SQS/SNS topic)
       onSuccess: functionName
-      # Function name or ARN of target (EventBridge/SQS/SNS topic)
-      onFailure: xxx:xxx:target
+      # Function name or ARN (or reference) of target (EventBridge/SQS/SNS topic)
+      onFailure: arn:xxx:target
+      onFailure:
+        type: sns
+        arn:
+          Ref: SomeTopicName
     # Mount an EFS filesystem
     fileSystemConfig:
       # ARN of EFS Access Point
@@ -999,6 +1030,8 @@ functions:
           arn: arn:aws:mq:us-east-1:0000:broker:ExampleMQBroker:b-xxx-xxx
           # Name of RabbitMQ queue consume from
           queue: queue-name
+          # Name of RabbitMQ virtual host to consume from
+          virtualHost: virtual-host
           # Secrets Manager ARN for basic auth credentials
           basicAuthArn: arn:aws:secretsmanager:us-east-1:01234567890:secret:MySecret
           # Optional, must be in 1-10000 range

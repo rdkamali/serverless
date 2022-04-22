@@ -815,41 +815,6 @@ describe('AwsCompileFunctions', () => {
       });
     });
 
-    it('should create a new version object if only the configuration changed', () => {
-      awsCompileFunctions.serverless.service.functions = {
-        func: {
-          handler: 'func.function.handler',
-        },
-        anotherFunc: {
-          handler: 'anotherFunc.function.handler',
-        },
-      };
-
-      let firstOutputs;
-      return expect(awsCompileFunctions.compileFunctions())
-        .to.be.fulfilled.then(() => {
-          firstOutputs =
-            awsCompileFunctions.serverless.service.provider.compiledCloudFormationTemplate.Outputs;
-
-          // Change configuration
-          awsCompileFunctions.serverless.service.provider.compiledCloudFormationTemplate = {
-            Resources: {},
-            Outputs: {},
-          };
-
-          awsCompileFunctions.serverless.service.functions.func.environment = {
-            MY_ENV_VAR: 'myvalue',
-          };
-
-          return expect(awsCompileFunctions.compileFunctions()).to.be.fulfilled;
-        })
-        .then(() => {
-          expect(
-            awsCompileFunctions.serverless.service.provider.compiledCloudFormationTemplate.Outputs
-          ).to.not.deep.equal(firstOutputs);
-        });
-    });
-
     it('should include description under version too if function is specified', () => {
       const lambdaDescription = 'Lambda function description';
       awsCompileFunctions.serverless.service.functions = {
@@ -1126,8 +1091,8 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
             fnImage: { image: imageWithSha },
             foo: {
               vpc: {
-                subnetIds: ['subnet-02020202'],
-                securityGroupIds: ['sg-1b1b1b1b'],
+                subnetIds: ['subnet-02020202', { 'Fn::If': ['cond', 'first', 'second'] }],
+                securityGroupIds: ['sg-1b1b1b1b', { 'Fn::If': ['cond', 'first', 'second'] }],
               },
               kmsKeyArn: 'arn:aws:kms:region:accountid:fun/ction',
               tracing: 'PassThrough',
@@ -1577,6 +1542,7 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
 
   describe('Function properties', () => {
     let cfResources;
+    let cfOutputs;
     let naming;
     let serverless;
     let serviceConfig;
@@ -1617,6 +1583,36 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
               handler: 'trigger.handler',
               destinations: { onSuccess: 'arn:aws:lambda:us-east-1:12313231:function:external' },
             },
+            fnDestinationsRefSns: {
+              handler: 'trigger.handler',
+              destinations: {
+                onSuccess: { type: 'sns', arn: { Ref: 'SomeSNSArn' } },
+              },
+            },
+            fnDestinationsRefSqs: {
+              handler: 'trigger.handler',
+              destinations: {
+                onSuccess: { type: 'sqs', arn: { Ref: 'SomeSQSArn' } },
+              },
+            },
+            fnDestinationsRefEventBus: {
+              handler: 'trigger.handler',
+              destinations: {
+                onSuccess: { type: 'eventBus', arn: { Ref: 'SomeEventBusArn' } },
+              },
+            },
+            fnDestinationsRefFunction: {
+              handler: 'trigger.handler',
+              destinations: {
+                onSuccess: { type: 'function', arn: { Ref: 'SomeFunctionArn' } },
+              },
+            },
+            fnDestinationsRefOnFailure: {
+              handler: 'trigger.handler',
+              destinations: {
+                onFailure: { type: 'sns', arn: { Ref: 'SomeSNSArn' } },
+              },
+            },
             fnDisabledLogs: { handler: 'trigger.handler', disableLogs: true },
             fnMaximumEventAge: { handler: 'trigger.handler', maximumEventAge: 3600 },
             fnMaximumRetryAttempts: { handler: 'trigger.handler', maximumRetryAttempts: 0 },
@@ -1655,6 +1651,32 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
               maximumRetryAttempts: 0,
               provisionedConcurrency: 1,
             },
+            fnEphemeralStorage: {
+              handler: 'index.handler',
+              ephemeralStorageSize: 1024,
+            },
+            fnUrl: {
+              handler: 'target.handler',
+              url: true,
+            },
+            fnUrlWithAuthAndCors: {
+              handler: 'target.handler',
+              url: {
+                authorizer: 'aws_iam',
+                cors: {
+                  maxAge: 3600,
+                },
+              },
+            },
+            fnUrlNullifyDefaultCorsValue: {
+              handler: 'target.handler',
+              url: {
+                authorizer: 'aws_iam',
+                cors: {
+                  allowedHeaders: null,
+                },
+              },
+            },
           },
           resources: {
             Resources: {
@@ -1674,6 +1696,7 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
         },
       });
       cfResources = cfTemplate.Resources;
+      cfOutputs = cfTemplate.Outputs;
       naming = awsNaming;
       serverless = serverlessInstance;
       serviceConfig = fixtureData.serviceConfig;
@@ -1854,6 +1877,89 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
       // https://github.com/serverless/serverless/blob/d8527d8b57e7e5f0b94ba704d9f53adb34298d99/lib/plugins/aws/package/compile/functions/index.test.js#L2381-L2397
     });
 
+    it('should support `functions[].url` set to `true`', () => {
+      expect(cfResources[naming.getLambdaFunctionUrlLogicalId('fnUrl')].Properties).to.deep.equal({
+        AuthType: 'NONE',
+        TargetFunctionArn: {
+          'Fn::GetAtt': [naming.getLambdaLogicalId('fnUrl'), 'Arn'],
+        },
+      });
+      expect(cfOutputs[naming.getLambdaFunctionUrlLogicalId('fnUrl')].Value).to.deep.equal({
+        'Fn::GetAtt': [naming.getLambdaFunctionUrlOutputLogicalId('fnUrl'), 'FunctionUrl'],
+      });
+
+      expect(
+        cfResources[naming.getLambdaFnUrlPermissionLogicalId('fnUrl')].Properties
+      ).to.deep.equal({
+        Action: 'lambda:InvokeFunctionUrl',
+        FunctionName: {
+          'Fn::GetAtt': ['FnUrlLambdaFunction', 'Arn'],
+        },
+        FunctionUrlAuthType: 'NONE',
+        Principal: '*',
+      });
+    });
+
+    it('should support `functions[].url` set to an object with authorizer and cors', () => {
+      expect(
+        cfResources[naming.getLambdaFunctionUrlLogicalId('fnUrlWithAuthAndCors')].Properties
+      ).to.deep.equal({
+        AuthType: 'AWS_IAM',
+        TargetFunctionArn: {
+          'Fn::GetAtt': [naming.getLambdaLogicalId('fnUrlWithAuthAndCors'), 'Arn'],
+        },
+        Cors: {
+          AllowMethods: ['*'],
+          AllowOrigins: ['*'],
+          AllowHeaders: [
+            'Content-Type',
+            'X-Amz-Date',
+            'Authorization',
+            'X-Api-Key',
+            'X-Amz-Security-Token',
+          ],
+          MaxAge: 3600,
+          AllowCredentials: undefined,
+          ExposeHeaders: undefined,
+        },
+      });
+      expect(
+        cfOutputs[naming.getLambdaFunctionUrlLogicalId('fnUrlWithAuthAndCors')].Value
+      ).to.deep.equal({
+        'Fn::GetAtt': [
+          naming.getLambdaFunctionUrlOutputLogicalId('fnUrlWithAuthAndCors'),
+          'FunctionUrl',
+        ],
+      });
+    });
+
+    it('should support nullifying default cors value with `null` for `functions[].url`', () => {
+      expect(
+        cfResources[naming.getLambdaFunctionUrlLogicalId('fnUrlNullifyDefaultCorsValue')].Properties
+      ).to.deep.equal({
+        AuthType: 'AWS_IAM',
+        TargetFunctionArn: {
+          'Fn::GetAtt': [naming.getLambdaLogicalId('fnUrlNullifyDefaultCorsValue'), 'Arn'],
+        },
+        Cors: {
+          AllowMethods: ['*'],
+          AllowOrigins: ['*'],
+          AllowHeaders: undefined,
+          MaxAge: undefined,
+          AllowCredentials: undefined,
+          ExposeHeaders: undefined,
+        },
+      });
+      expect(
+        cfOutputs[naming.getLambdaFunctionUrlLogicalId('fnUrlNullifyDefaultCorsValue')].Value
+      ).to.deep.equal({
+        'Fn::GetAtt': [
+          naming.getLambdaFunctionUrlOutputLogicalId('fnUrlNullifyDefaultCorsValue'),
+          'FunctionUrl',
+        ],
+      });
+    });
+
     it('should support `functions[].architecture`', () => {
       expect(
         cfResources[naming.getLambdaLogicalId('fnArch')].Properties.Architectures
@@ -1932,6 +2038,91 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
       });
     });
 
+    it('should support `functions[].destinations.onSuccess` as `Ref` for `sns`', () => {
+      const destinationConfig =
+        cfResources[naming.getLambdaEventConfigLogicalId('fnDestinationsRefSns')].Properties
+          .DestinationConfig;
+
+      const property = serviceConfig.functions.fnDestinationsRefSns.destinations.onSuccess;
+      expect(destinationConfig).to.deep.equal({
+        OnSuccess: { Destination: property.arn },
+      });
+
+      expect(iamRolePolicyStatements).to.deep.include({
+        Effect: 'Allow',
+        Action: 'sns:Publish',
+        Resource: property.arn,
+      });
+    });
+
+    it('should support `functions[].destinations.onSuccess` as `Ref` for `sqs`', () => {
+      const destinationConfig =
+        cfResources[naming.getLambdaEventConfigLogicalId('fnDestinationsRefSqs')].Properties
+          .DestinationConfig;
+
+      const property = serviceConfig.functions.fnDestinationsRefSqs.destinations.onSuccess;
+      expect(destinationConfig).to.deep.equal({
+        OnSuccess: { Destination: property.arn },
+      });
+
+      expect(iamRolePolicyStatements).to.deep.include({
+        Effect: 'Allow',
+        Action: 'sqs:SendMessage',
+        Resource: property.arn,
+      });
+    });
+
+    it('should support `functions[].destinations.onSuccess` as `Ref` for `eventBus`', () => {
+      const destinationConfig =
+        cfResources[naming.getLambdaEventConfigLogicalId('fnDestinationsRefEventBus')].Properties
+          .DestinationConfig;
+
+      const property = serviceConfig.functions.fnDestinationsRefEventBus.destinations.onSuccess;
+      expect(destinationConfig).to.deep.equal({
+        OnSuccess: { Destination: property.arn },
+      });
+
+      expect(iamRolePolicyStatements).to.deep.include({
+        Effect: 'Allow',
+        Action: 'events:PutEvents',
+        Resource: property.arn,
+      });
+    });
+
+    it('should support `functions[].destinations.onSuccess` as `Ref` for `function`', () => {
+      const destinationConfig =
+        cfResources[naming.getLambdaEventConfigLogicalId('fnDestinationsRefFunction')].Properties
+          .DestinationConfig;
+
+      const property = serviceConfig.functions.fnDestinationsRefFunction.destinations.onSuccess;
+      expect(destinationConfig).to.deep.equal({
+        OnSuccess: { Destination: property.arn },
+      });
+
+      expect(iamRolePolicyStatements).to.deep.include({
+        Effect: 'Allow',
+        Action: 'lambda:InvokeFunction',
+        Resource: property.arn,
+      });
+    });
+
+    it('should support `functions[].destinations.onFailure` as `Ref`', () => {
+      const destinationConfig =
+        cfResources[naming.getLambdaEventConfigLogicalId('fnDestinationsRefOnFailure')].Properties
+          .DestinationConfig;
+
+      const property = serviceConfig.functions.fnDestinationsRefOnFailure.destinations.onFailure;
+      expect(destinationConfig).to.deep.equal({
+        OnFailure: { Destination: property.arn },
+      });
+
+      expect(iamRolePolicyStatements).to.deep.include({
+        Effect: 'Allow',
+        Action: 'sns:Publish',
+        Resource: property.arn,
+      });
+    });
+
     it('should support `functions[].disableLogs`', () => {
       expect(cfResources[naming.getLambdaLogicalId('fnDisabledLogs')]).to.not.have.property(
         'DependsOn'
@@ -1961,6 +2152,16 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
       expect(cfResources[naming.getLambdaEventConfigLogicalId('fnProvisioned')].DependsOn).to.equal(
         naming.getLambdaProvisionedConcurrencyAliasLogicalId('fnProvisioned')
       );
+    });
+
+    it('should support `functions[].ephemeralStorageSize`', () => {
+      const ephemeralStorageSize = serviceConfig.functions.fnEphemeralStorage.ephemeralStorageSize;
+
+      expect(ephemeralStorageSize).to.be.a('number');
+
+      expect(
+        cfResources[naming.getLambdaLogicalId('fnEphemeralStorage')].Properties.EphemeralStorage
+      ).to.deep.equal({ Size: ephemeralStorageSize });
     });
 
     it('should support `functions[].fileSystemConfig` (with vpc configured on function)', () => {
@@ -2047,11 +2248,41 @@ describe('lib/plugins/aws/package/compile/functions/index.test.js', () => {
           }
         : {};
 
-      it.skip('TODO: should create a different version if configuration changed', () => {
-        // Replacement for
-        // https://github.com/serverless/serverless/blob/d8527d8b57e7e5f0b94ba704d9f53adb34298d99/lib/plugins/aws/package/compile/functions/index.test.js#L2022-L2057
-        //
-        // Configure in similar fashion as test below
+      it('should create a different version if configuration changed', async () => {
+        const { servicePath: serviceDir, updateConfig } = await fixtures.setup('function', {
+          configExt,
+        });
+
+        const { cfTemplate: originalTemplate } = await runServerless({
+          cwd: serviceDir,
+          command: 'package',
+        });
+
+        const originalVersionArn =
+          originalTemplate.Outputs.BasicLambdaFunctionQualifiedArn.Value.Ref;
+
+        await updateConfig({
+          functions: {
+            basic: {
+              environment: {
+                MY_ENV_VAR: 'myvalue',
+              },
+            },
+          },
+        });
+
+        const { cfTemplate: updatedTemplate } = await runServerless({
+          cwd: serviceDir,
+          command: 'package',
+        });
+
+        const updatedVersionArn = updatedTemplate.Outputs.BasicLambdaFunctionQualifiedArn.Value.Ref;
+
+        expect(
+          updatedTemplate.Resources.BasicLambdaFunction.Properties.Environment.Variables.MY_ENV_VAR
+        ).to.equal('myvalue');
+
+        expect(originalVersionArn).to.not.equal(updatedVersionArn);
       });
 
       it('should not create a different version if only function-wide configuration changed', async () => {

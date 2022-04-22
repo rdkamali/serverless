@@ -5,6 +5,7 @@ const sinon = require('sinon');
 const path = require('path');
 const fsp = require('fs').promises;
 const _ = require('lodash');
+const fetch = require('node-fetch');
 const log = require('log').get('serverless:test');
 const runServerless = require('../../../utils/run-serverless');
 const getRequire = require('../../../../lib/utils/get-require');
@@ -17,7 +18,7 @@ const createFetchStub = () => {
   const requests = [];
   return {
     requests,
-    stub: sinon.stub().callsFake(async (url, { method }) => {
+    stub: sinon.stub().callsFake(async (url, { method } = { method: 'GET' }) => {
       log.debug('fetch request %s %o', url, method);
       if (url.includes('/org/')) {
         if (method.toUpperCase() === 'GET') {
@@ -48,7 +49,8 @@ const createFetchStub = () => {
           return { ok: true, text: async () => '' };
         }
       }
-      throw new Error('Unexpected request');
+      if (url.startsWith('https://registry.npmjs.org')) return fetch(url, { method });
+      throw new Error(`Unexpected request: ${url} method: ${method}`);
     }),
   };
 };
@@ -105,7 +107,18 @@ const createAwsRequestStubMap = () => ({
       ],
     }),
     headBucket: {},
-    upload: {},
+    upload: sinon.stub().callsFake(async ({ Body: body }) => {
+      if (typeof body.destroy === 'function') {
+        // Ensure to drain eventual file streams, otherwise file remain locked and
+        // on Windows they cannot be removed, resulting with homedir being dirty for next test runs
+        await new Promise((resolve, reject) => {
+          body.on('data', () => {});
+          body.on('end', resolve);
+          body.on('error', reject);
+        });
+      }
+      return {};
+    }),
   },
   STS: {
     getCallerIdentity: {
@@ -118,8 +131,8 @@ const createAwsRequestStubMap = () => ({
 });
 
 const ServerlessSDKMock = class ServerlessSDK {
-  async getOrgByName() {
-    return { orgUid: 'testorgid' };
+  async getOrgByName(orgName) {
+    return { orgUid: `${orgName}id` };
   }
 };
 
@@ -134,9 +147,8 @@ describe('test/unit/lib/classes/console.test.js', () => {
       let fetchStub;
       let otelIngenstionRequests;
       before(async () => {
-        uploadStub = sinon.stub().resolves({});
         const awsRequestStubMap = createAwsRequestStubMap();
-        awsRequestStubMap.S3.upload = uploadStub;
+        uploadStub = awsRequestStubMap.S3.upload;
         ({ requests: otelIngenstionRequests, stub: fetchStub } = createFetchStub());
 
         ({
@@ -170,6 +182,7 @@ describe('test/unit/lib/classes/console.test.js', () => {
         for (const fnVariables of fnVariablesList) {
           expect(fnVariables).to.have.property('SLS_OTEL_REPORT_REQUEST_HEADERS');
           expect(fnVariables).to.have.property('SLS_OTEL_REPORT_METRICS_URL');
+          expect(fnVariables).to.have.property('SLS_OTEL_REPORT_LOGS_URL');
           expect(fnVariables).to.have.property('AWS_LAMBDA_EXEC_WRAPPER');
         }
 
@@ -183,25 +196,181 @@ describe('test/unit/lib/classes/console.test.js', () => {
         expect(notSupportedFnVariables).to.not.have.property('AWS_LAMBDA_EXEC_WRAPPER');
       });
 
+      it('should reflect default userSettings', () => {
+        const userSettingsString =
+          cfTemplate.Resources[awsNaming.getLambdaLogicalId('fnService')].Properties.Environment
+            .Variables.SLS_OTEL_USER_SETTINGS;
+        if (!userSettingsString) return;
+        expect(JSON.parse(userSettingsString)).to.deep.equal({});
+      });
+
       it('should package extension layer', async () => {
         expect(cfTemplate.Resources).to.have.property(
           awsNaming.getConsoleExtensionLayerLogicalId()
         );
         await fsp.access(
-          path.resolve(servicePath, '.serverless', serverless.console.extensionLayerFilename)
+          path.resolve(
+            servicePath,
+            '.serverless',
+            await serverless.console.deferredExtensionLayerBasename
+          )
         );
       });
 
-      it('should upload extension layer to S3', () => {
-        expect(
-          uploadStub.args.some(([{ Key: s3Key }]) =>
-            s3Key.endsWith(serverless.console.extensionLayerFilename)
-          )
-        ).to.be.true;
+      it('should upload extension layer to S3', async () => {
+        const consoleExtensionLayerBasename = await serverless.console
+          .deferredExtensionLayerBasename;
+        log.debug(
+          'layer basename: %s, s3Keys: %o',
+          consoleExtensionLayerBasename,
+          uploadStub.args.map(([{ Key: s3Key }]) => s3Key)
+        );
+        const uploadArgs = uploadStub.args.find(([{ Key: s3Key }]) =>
+          s3Key.endsWith(consoleExtensionLayerBasename)
+        )[0];
+        // Confirm that Bucket is properly resolved in outer `uploadZipFile` method
+        expect(typeof uploadArgs.Bucket).to.equal('string');
       });
 
       it('should activate otel ingestion token', () => {
         otelIngenstionRequests.includes('activate-token');
+      });
+    });
+
+    describe('package', () => {
+      let userSettings;
+      before(async () => {
+        const { stub: fetchStub } = createFetchStub();
+
+        const { cfTemplate, awsNaming } = await runServerless({
+          fixture: 'function',
+          command: 'package',
+          configExt: {
+            console: {
+              disableLogsCollection: true,
+              disableRequestResponseCollection: true,
+            },
+            org: 'testorg',
+          },
+          env: { SERVERLESS_ACCESS_KEY: 'dummy' },
+          modulesCacheStub: {
+            [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
+              '@serverless/platform-client'
+            )]: { ServerlessSDK: ServerlessSDKMock },
+            [require.resolve('node-fetch')]: fetchStub,
+          },
+        });
+        userSettings = JSON.parse(
+          cfTemplate.Resources[awsNaming.getLambdaLogicalId('basic')].Properties.Environment
+            .Variables.SLS_OTEL_USER_SETTINGS
+        );
+      });
+
+      it('should propagate `disableLogsCollection`', () => {
+        expect(userSettings.disableLogsMonitoring).to.be.true;
+      });
+
+      it('should propagate `disableRequestResponseCollection`', () => {
+        expect(userSettings.disableRequestResponseMonitoring).to.be.true;
+      });
+    });
+
+    describe('package with "provider.layers" configuration', () => {
+      it('should setup console wihout errors', async () => {
+        const fetchStub = createFetchStub().stub;
+        const { cfTemplate, awsNaming } = await runServerless({
+          fixture: 'function-layers',
+          command: 'package',
+          configExt: {
+            console: true,
+            org: 'testorg',
+            layers: {
+              extra1: { path: 'test-layer' },
+              extra2: { path: 'test-layer' },
+            },
+            package: {
+              individually: true,
+            },
+            provider: { layers: [{ Ref: 'Extra1LambdaLayer' }, { Ref: 'Extra2LambdaLayer' }] },
+            functions: { layerFunc: { layers: null }, capitalLayerFunc: { layers: null } },
+          },
+          modulesCacheStub: {
+            [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
+              '@serverless/platform-client'
+            )]: { ServerlessSDK: ServerlessSDKMock },
+            [require.resolve('node-fetch')]: fetchStub,
+          },
+          awsRequestStubMap: createAwsRequestStubMap(),
+          env: { SERVERLESS_ACCESS_KEY: 'dummy' },
+        });
+
+        const configuredLayers =
+          cfTemplate.Resources[awsNaming.getLambdaLogicalId('layerFunc')].Properties.Layers;
+        expect(
+          configuredLayers.some(
+            ({ Ref: logicalId }) => logicalId === awsNaming.getConsoleExtensionLayerLogicalId()
+          )
+        ).to.be.true;
+      });
+    });
+
+    describe('disable logs collection', () => {
+      it('should not setup report logs url', async () => {
+        const fetchStub = createFetchStub().stub;
+        const { cfTemplate, awsNaming } = await runServerless({
+          fixture: 'function',
+          command: 'package',
+          configExt: {
+            console: { disableLogsCollection: true },
+            org: 'testorg',
+          },
+          modulesCacheStub: {
+            [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
+              '@serverless/platform-client'
+            )]: { ServerlessSDK: ServerlessSDKMock },
+            [require.resolve('node-fetch')]: fetchStub,
+          },
+          awsRequestStubMap: createAwsRequestStubMap(),
+          env: { SERVERLESS_ACCESS_KEY: 'dummy' },
+        });
+
+        const fnVariables =
+          cfTemplate.Resources[awsNaming.getLambdaLogicalId('basic')].Properties.Environment
+            .Variables;
+        expect(fnVariables).to.have.property('SLS_OTEL_REPORT_REQUEST_HEADERS');
+        expect(fnVariables).to.not.have.property('SLS_OTEL_REPORT_LOGS_URL');
+        expect(fnVariables).to.have.property('AWS_LAMBDA_EXEC_WRAPPER');
+      });
+    });
+
+    describe('package for custom deployment bucket', () => {
+      let cfTemplate;
+      let awsNaming;
+      before(async () => {
+        const { stub: fetchStub } = createFetchStub();
+
+        ({ cfTemplate, awsNaming } = await runServerless({
+          fixture: 'function',
+          command: 'package',
+          configExt: { console: true, org: 'testorg', provider: { deploymentBucket: 'custom' } },
+          env: { SERVERLESS_ACCESS_KEY: 'dummy' },
+          modulesCacheStub: {
+            [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
+              '@serverless/platform-client'
+            )]: { ServerlessSDK: ServerlessSDKMock },
+            [require.resolve('node-fetch')]: fetchStub,
+          },
+        }));
+      });
+
+      it('should not reference default deployment bucket anywhere', () => {
+        expect(JSON.stringify(cfTemplate.Resources)).to.not.contain('ServerlessDeploymentBucket');
+      });
+      it('should reference custom S3 bucket at layer version', () => {
+        expect(
+          cfTemplate.Resources[awsNaming.getConsoleExtensionLayerLogicalId()].Properties.Content
+            .S3Bucket
+        ).to.equal('custom');
       });
     });
   });
@@ -214,9 +383,6 @@ describe('test/unit/lib/classes/console.test.js', () => {
     let fetchStub;
     let otelIngenstionRequests;
     before(async () => {
-      uploadStub = sinon.stub().resolves({});
-      const awsRequestStubMap = createAwsRequestStubMap();
-      awsRequestStubMap.S3.upload = uploadStub;
       ({ requests: otelIngenstionRequests, stub: fetchStub } = createFetchStub());
 
       ({
@@ -235,6 +401,9 @@ describe('test/unit/lib/classes/console.test.js', () => {
           [require.resolve('node-fetch')]: fetchStub,
         },
       }));
+
+      const awsRequestStubMap = createAwsRequestStubMap();
+      uploadStub = awsRequestStubMap.S3.upload;
 
       ({
         serverless: { console: consoleDeploy },
@@ -259,12 +428,10 @@ describe('test/unit/lib/classes/console.test.js', () => {
       expect(consoleDeploy.serviceId).to.equal(consolePackage.serviceId);
     });
 
-    it('should upload extension layer to S3', () => {
-      expect(
-        uploadStub.args.some(([{ Key: s3Key }]) =>
-          s3Key.endsWith(consoleDeploy.extensionLayerFilename)
-        )
-      ).to.be.true;
+    it('should upload extension layer to S3', async () => {
+      const extensionLayerFilename = await consoleDeploy.deferredExtensionLayerBasename;
+      expect(uploadStub.args.some(([{ Key: s3Key }]) => s3Key.endsWith(extensionLayerFilename))).to
+        .be.true;
     });
 
     it('should activate otel ingestion token', () => {
@@ -280,11 +447,10 @@ describe('test/unit/lib/classes/console.test.js', () => {
     let fetchStub;
     let otelIngenstionRequests;
     before(async () => {
-      uploadStub = sinon.stub().resolves({});
       updateFunctionStub = sinon.stub().resolves({});
       publishLayerStub = sinon.stub().resolves({});
       const awsRequestStubMap = createAwsRequestStubMap();
-      awsRequestStubMap.S3.upload = uploadStub;
+      uploadStub = awsRequestStubMap.S3.upload;
       let isFirstLayerVersionsQuery = true;
       ({ requests: otelIngenstionRequests, stub: fetchStub } = createFetchStub());
 
@@ -326,12 +492,10 @@ describe('test/unit/lib/classes/console.test.js', () => {
       expect(fnVariables).to.have.property('AWS_LAMBDA_EXEC_WRAPPER');
     });
 
-    it('should upload extension layer to S3', () => {
-      expect(
-        uploadStub.args.some(([{ Key: s3Key }]) =>
-          s3Key.endsWith(serverless.console.extensionLayerFilename)
-        )
-      ).to.be.true;
+    it('should upload extension layer to S3', async () => {
+      const extensionLayerFilename = await serverless.console.deferredExtensionLayerBasename;
+      expect(uploadStub.args.some(([{ Key: s3Key }]) => s3Key.endsWith(extensionLayerFilename))).to
+        .be.true;
     });
 
     it('should activate otel ingestion token', () => {
@@ -341,13 +505,10 @@ describe('test/unit/lib/classes/console.test.js', () => {
 
   describe('rollback', () => {
     let slsConsole;
-    let uploadStub;
     let fetchStub;
     let otelIngenstionRequests;
     before(async () => {
-      uploadStub = sinon.stub().resolves({});
       const awsRequestStubMap = createAwsRequestStubMap();
-      awsRequestStubMap.S3.upload = uploadStub;
       ({ requests: otelIngenstionRequests, stub: fetchStub } = createFetchStub());
 
       ({
@@ -425,9 +586,7 @@ describe('test/unit/lib/classes/console.test.js', () => {
     let otelIngenstionRequests;
     let fetchStub;
     before(async () => {
-      const uploadStub = sinon.stub().resolves({});
       const awsRequestStubMap = createAwsRequestStubMap();
-      awsRequestStubMap.S3.upload = uploadStub;
       ({ requests: otelIngenstionRequests, stub: fetchStub } = createFetchStub());
 
       await runServerless({
@@ -487,6 +646,43 @@ describe('test/unit/lib/classes/console.test.js', () => {
       ).to.eventually.be.rejected.and.have.property('code', 'CONSOLE_NOT_AUTHENTICATED');
     });
 
+    it('should abort when function has already maximum numbers of layers configured', async () => {
+      const fetchStub = createFetchStub().stub;
+      await expect(
+        runServerless({
+          fixture: 'function-layers',
+          command: 'package',
+          configExt: {
+            console: true,
+            org: 'testorg',
+            layers: {
+              extra1: { path: 'test-layer' },
+              extra2: { path: 'test-layer' },
+            },
+            functions: {
+              layerFuncWithConfig: {
+                layers: [
+                  { Ref: 'TestLayerLambdaLayer' },
+                  { Ref: 'TestLayerWithCapitalsLambdaLayer' },
+                  { Ref: 'TestLayerWithNoNameLambdaLayer' },
+                  { Ref: 'Extra1LambdaLayer' },
+                  { Ref: 'Extra2LambdaLayer' },
+                ],
+              },
+            },
+          },
+          modulesCacheStub: {
+            [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
+              '@serverless/platform-client'
+            )]: { ServerlessSDK: ServerlessSDKMock },
+            [require.resolve('node-fetch')]: fetchStub,
+          },
+          awsRequestStubMap: createAwsRequestStubMap(),
+          env: { SERVERLESS_ACCESS_KEY: 'dummy' },
+        })
+      ).to.eventually.be.rejected.and.have.property('code', 'TOO_MANY_LAYERS_TO_SETUP_CONSOLE');
+    });
+
     it(
       'should throw integration error when attempting to deploy package, ' +
         'packaged with different console integration version',
@@ -506,6 +702,7 @@ describe('test/unit/lib/classes/console.test.js', () => {
             )]: { ServerlessSDK: ServerlessSDKMock },
             [require.resolve('node-fetch')]: fetchStub,
           },
+          awsRequestStubMap: createAwsRequestStubMap(),
         });
         const stateFilename = path.resolve(servicePath, 'package-dir', 'serverless-state.json');
         const state = JSON.parse(await fsp.readFile(stateFilename, 'utf-8'));
@@ -538,12 +735,12 @@ describe('test/unit/lib/classes/console.test.js', () => {
       async () => {
         const fetchStub = createFetchStub().stub;
         const {
-          fixtureData: { servicePath },
+          fixtureData: { servicePath, updateConfig },
         } = await runServerless({
           fixture: 'function',
           command: 'package',
           options: { package: 'package-dir' },
-          configExt: { console: true, org: 'testorg' },
+          configExt: { console: true, org: 'other' },
           env: { SERVERLESS_ACCESS_KEY: 'dummy' },
           modulesCacheStub: {
             [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
@@ -552,17 +749,15 @@ describe('test/unit/lib/classes/console.test.js', () => {
             [require.resolve('node-fetch')]: fetchStub,
           },
         });
-        const stateFilename = path.resolve(servicePath, 'package-dir', 'serverless-state.json');
-        const state = JSON.parse(await fsp.readFile(stateFilename, 'utf-8'));
-        state.console.orgId = 'other';
-        await fsp.writeFile(stateFilename, JSON.stringify(state));
+
+        await updateConfig({ org: 'testorg' });
+
         await expect(
           runServerless({
             cwd: servicePath,
             command: 'deploy',
             lastLifecycleHookName: 'aws:deploy:deploy:uploadArtifacts',
             options: { package: 'package-dir' },
-            configExt: { console: true, org: 'testorg' },
             env: { SERVERLESS_ACCESS_KEY: 'dummy' },
             modulesCacheStub: {
               [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
@@ -578,8 +773,51 @@ describe('test/unit/lib/classes/console.test.js', () => {
       }
     );
     it(
+      'should throw mismatch error when attempting to deploy package, ' +
+        'packaged with different region',
+      async () => {
+        const fetchStub = createFetchStub().stub;
+        const {
+          fixtureData: { servicePath, updateConfig },
+        } = await runServerless({
+          fixture: 'function',
+          command: 'package',
+          options: { package: 'package-dir' },
+          configExt: { console: true, org: 'testorg' },
+          env: { SERVERLESS_ACCESS_KEY: 'dummy' },
+          modulesCacheStub: {
+            [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
+              '@serverless/platform-client'
+            )]: { ServerlessSDK: ServerlessSDKMock },
+            [require.resolve('node-fetch')]: fetchStub,
+          },
+        });
+
+        await updateConfig({ provider: { region: 'us-east-2' } });
+
+        await expect(
+          runServerless({
+            cwd: servicePath,
+            command: 'deploy',
+            lastLifecycleHookName: 'aws:deploy:deploy:uploadArtifacts',
+            options: { package: 'package-dir' },
+            env: { SERVERLESS_ACCESS_KEY: 'dummy' },
+            modulesCacheStub: {
+              [getRequire(path.dirname(require.resolve('@serverless/dashboard-plugin'))).resolve(
+                '@serverless/platform-client'
+              )]: {
+                ServerlessSDK: ServerlessSDKMock,
+              },
+              [require.resolve('node-fetch')]: fetchStub,
+            },
+            awsRequestStubMap: createAwsRequestStubMap(),
+          })
+        ).to.eventually.be.rejected.and.have.property('code', 'CONSOLE_REGION_MISMATCH');
+      }
+    );
+    it(
       'should throw activation mismatch error when attempting to deploy with ' +
-        'console integration off, but packaged with console integration on, ',
+        'console integration off, but packaged with console integration on',
       async () => {
         const fetchStub = createFetchStub().stub;
         const {
