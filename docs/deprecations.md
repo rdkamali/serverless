@@ -116,6 +116,15 @@ Deprecation code: `CLI_DEPLOY_FUNCTION_OPTION_V3`
 
 Starting with `v4.0.0`, `--function` or `-f` option for `deploy` command will no longer be supported. In order to deploy a single function, please use `deploy function` command instead.
 
+<a name="AWS_WEBSOCKET_API_USE_PROVIDER_TAGS"><div>&nbsp;</div></a>
+
+## Property `provider.websocket.useProviderTags`
+
+Deprecation code: `AWS_WEBSOCKET_API_USE_PROVIDER_TAGS`
+
+Starting with v4.0.0, `provider.tags` will be applied to Websocket Api Gateway by default
+Set `provider.websocket.useProviderTags` to `true` to adapt to the new behavior now.
+
 <a name="LAMBDA_HASHING_VERSION_PROPERTY"><div>&nbsp;</div></a>
 
 ## Property `provider.lambdaHashingVersion`
@@ -248,11 +257,11 @@ Deprecation code: `UNSUPPORTED_CLI_OPTIONS`
 
 CLI options validation was introduced to detect typos and mistakes. That required dropping support for _free-form_ CLI options in v3 (because free-form CLI options cannot be validated).
 
-An alternative to free-form CLI options is to use [environment variables](./providers/aws/guide/variables#referencing-environment-variables). Another option is to use [the `--param` option](./parameters.md#cli-parameters) introduced in Serverless Framework **v3.3.0**:
+An alternative to free-form CLI options is to use [environment variables](./providers/aws/guide/variables#referencing-environment-variables). Another option is to use [the `--param` option](./guides/parameters#cli-parameters) introduced in Serverless Framework **v3.3.0**:
 
 ```yaml
 provider:
-  environement:
+  environment:
     APP_DOMAIN: ${param:domain, 'preview.myapp.com'}
 ```
 

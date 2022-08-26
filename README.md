@@ -8,7 +8,7 @@
 [![Known Vulnerabilities](https://snyk.io/test/github/serverless/serverless/badge.svg)](https://snyk.io/test/github/serverless/serverless)
 [![license](https://img.shields.io/npm/l/serverless.svg)](https://www.npmjs.com/package/serverless)
 
-[Website](http://www.serverless.com) • [Docs](https://serverless.com/framework/docs/) • [Community Slack](https://join.slack.com/t/serverless-contrib/shared_invite/zt-d5qzowja-pnOerTzAIZUrN18hWYUIHA) • [Forum](http://forum.serverless.com) • [Twitter](https://twitter.com/goserverless) • [Meetups](https://www.meetup.com/pro/serverless/) • [We're Hiring](https://serverless.com/company/jobs/) • [简体中文](./README_CN.md)
+[Website](http://www.serverless.com) • [Docs](https://serverless.com/framework/docs/) • [Community Slack](https://serverless.com/slack) • [Forum](http://forum.serverless.com) • [Twitter](https://twitter.com/goserverless) • [Meetups](https://www.meetup.com/pro/serverless/) • [We're Hiring](https://serverless.com/company/jobs/) • [简体中文](./README_CN.md)
 
 **The Serverless Framework** – Build applications on AWS Lambda and other next-gen cloud services, that auto-scale and only charge you when they run. This lowers the total cost of running and operating your apps, enabling you to build more and manage less.
 
@@ -19,7 +19,6 @@ Actively maintained by [Serverless Inc](https://www.serverless.com).
 ## Contents
 
 - [Quick Start](#quick-start)
-- [Examples](https://github.com/serverless/examples)
 - [Features](#features)
 - [Plugins](https://github.com/serverless/plugins)
 - [Contributing](#contributing)
@@ -29,77 +28,107 @@ Actively maintained by [Serverless Inc](https://www.serverless.com).
 
 ## <a name="quick-start"></a>Quick Start
 
-### Install Via NPM:
+### Installation
+
+Install the `serverless` CLI via NPM:
 
 ```bash
 npm install -g serverless
 ```
 
-### Set Up Your AWS Account Credentials:
+Note: If you don’t already have Node on your machine, [install it first](https://nodejs.org/). If you don't want to install Node or NPM, you can [install `serverless` as a standalone binary](https://www.serverless.com/framework/docs/install-standalone).
 
-The Serverless Framework deploys to your own AWS account. You'll need to enable Serverless Framework to deploy to your AWS account by giving it access. [Here is a guide to help you set up your credentials securely](https://www.serverless.com/framework/docs/providers/aws/guide/credentials)
+### Getting started
 
-### Create A Service:
-
-A "Service" is the Framework's project or app concept. You can create one from scratch or select an existing template by running.
+To create your first project, run the command below and follow the prompts:
 
 ```bash
+# Create a new serverless project
 serverless
+
+# Move into the newly created directory
+cd your-service-name
 ```
 
-Go through the onboarding flow and then navigate into the newly created directory.
+The `serverless` command will guide you to:
 
-```bash
-cd my-new-service
+1. create a new project
+2. configure [AWS credentials](https://serverless.com/framework/docs/providers/aws/guide/credentials/)
+3. optionally set up a free [Serverless Dashboard](https://www.serverless.com/monitoring) account to monitor and troubleshoot your project
+
+_Note: users based in China get a setup centered around the chinese [Tencent](https://intl.cloud.tencent.com/) provider. To use AWS instead, set the following environment variable: `SERVERLESS_PLATFORM_VENDOR=aws`._
+
+Your new serverless project should contain a `serverless.yml` file. This file defines what will be deployed to AWS: functions, events, resources and more. You can learn more about this in the [Core Concepts documentation](https://www.serverless.com/framework/docs/providers/aws/guide/intro).
+
+If the templates proposed by `serverless` do not fit your needs, check out the [project examples from Serverless Inc. and our community](https://www.serverless.com/examples/). You can install any example by passing a GitHub URL using the `--template-url` option:
+
+```sh
+serverless --template-url=https://github.com/serverless/examples/tree/v3/...
 ```
 
-### Deploy A Service:
+### Deploying
 
-Use this when you have made changes to your Functions, Events or Resources in `serverless.yml` or you simply want to deploy all changes within your Service at the same time.
+If you haven't done so already within the `serverless` command, you can deploy the project at any time by running:
 
 ```bash
 serverless deploy
 ```
 
-### Deploy A Function:
+The deployed functions, resources and URLs will be displayed in the command output.
 
-Use this to quickly upload and overwrite your AWS Lambda code on AWS, allowing you to develop faster.
+[Learn more about deploying](https://www.serverless.com/framework/docs/providers/aws/guide/deploying).
 
-```bash
-serverless deploy function -f hello
-```
+### Invoking function
 
-### Invoke The Function On AWS:
+If you deployed an API, querying its URL will trigger the associated Lambda function. You can find that URL in the `serverless deploy` output, or retrieve it later via `serverless info`.
 
-Invokes an AWS Lambda Function on AWS and returns logs.
+If you deployed a function that isn't exposed via a URL, you can invoke it via:
 
 ```bash
-serverless invoke -f hello -l
+serverless invoke -f hello
+
+# Invoke and display logs:
+serverless invoke -f hello --log
 ```
 
-### Invoke The Function Locally:
+### Fetching function logs
 
-Invokes an AWS Lambda Function on your local machine and returns logs.
+All logs generated by a function's invocation are automatically stored in AWS CloudWatch. Retrieve those logs in the CLI via:
 
 ```bash
-serverless invoke local -f hello -l
+serverless logs -f hello
+
+# Tail logs
+serverless logs -f hello --tail
 ```
 
-### Stream Function Logs:
+### Monitoring
 
-Open up a separate tab in your console and stream all logs for a specific Function using this command.
+You can monitor and debug Lambda functions and APIs via the [Serverless Dashboard](https://www.serverless.com/monitoring).
+
+To set it up, run the following command in an existing project and follow the prompts:
 
 ```bash
-serverless logs -f hello -t
+serverless
 ```
 
-### Remove The Service:
+### Remove your service
 
-Removes all Functions, Events and Resources from your AWS account.
+If you want to delete your service, run `serverless remove`. This will delete all the AWS resources created by your project and ensure that you don't incur any unexpected charges. It will also remove the service from Serverless Dashboard.
 
 ```bash
 serverless remove
 ```
+
+## What's next
+
+Now that Serverless Framework is installed, here is what you can do next:
+
+- Follow the [tutorial to create an example HTTP API with Node](https://www.serverless.com/framework/docs/tutorial)
+- Learn about the [core concepts in Serverless Framework](https://www.serverless.com/framework/docs/providers/aws/guide/intro)
+- [Redeploy a single function](https://www.serverless.com/framework/docs/providers/aws/guide/deploying#deploy-function) for iterating faster while developing
+- Discover all the [events that can trigger Lambda functions](https://www.serverless.com/framework/docs/providers/aws/guide/events)
+- Check out the [plugins registry](https://www.serverless.com/plugins)
 
 ## <a name="features"></a>Features
 
@@ -115,6 +144,24 @@ serverless remove
 - An ecosystem of serverless services and plugins.
 - A passionate and welcoming community!
 
+<br>
+
+<table>
+  <tr>
+    <td align="center">
+      <br><strong>Try <a href="https://www.serverless.com/console/">Serverless Console</a></strong><br><br>
+      Monitor, observe, and trace your serverless architectures.<br>
+      Real-time dev mode provides streaming logs from your AWS Lambda Functions.<br><br>
+      Get started instantly with <code>serverless --console</code><br>
+      -or-<br>
+      <a href="https://bit.ly/3kL8ACL">Register</a>
+      <img src="https://user-images.githubusercontent.com/3837103/167449348-bf254fca-9aec-4367-b166-aaa69178f98c.png">
+    </td>
+  </tr>
+</table>
+
+<br>
+
 ## <a name="contributing"></a>Contributing
 
 We love our contributors! Please read our [Contributing Document](CONTRIBUTING.md) to learn how you can start working on the Framework yourself.
@@ -124,8 +171,7 @@ Check out our [help wanted](https://github.com/serverless/serverless/labels/help
 ## <a name="community"></a>Community
 
 - [Twitter](https://twitter.com/goserverless)
-- [Community Slack](https://join.slack.com/t/serverless-contrib/shared_invite/zt-d5qzowja-pnOerTzAIZUrN18hWYUIHA)
-- [Gitter Chatroom](https://gitter.im/serverless/serverless)
+- [Community Slack](https://serverless.com/slack)
 - [Serverless Meetups](http://www.meetup.com/serverless/)
 - [Stackoverflow](http://stackoverflow.com/questions/tagged/serverless-framework)
 - [Facebook](https://www.facebook.com/serverless)

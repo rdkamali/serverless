@@ -1,7 +1,5 @@
 <!--
-title: Serverless Variables
-menuText: Variables
-menuOrder: 11
+title: Serverless Framework Variables
 description: How to use Serverless Variables to insert dynamic configuration info into your serverless.yml
 layout: Doc
 -->
@@ -212,7 +210,7 @@ You can add such custom output to CloudFormation stack. For example:
 service: another-service
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
   region: ap-northeast-1
   memorySize: 512
 functions:

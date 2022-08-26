@@ -1,7 +1,5 @@
 <!--
-title: Serverless Framework - AWS Lambda Guide - Functions
-menuText: Functions
-menuOrder: 5
+title: Serverless Framework - AWS Lambda Functions
 description: How to configure AWS Lambda functions in the Serverless Framework
 layout: Doc
 -->
@@ -12,7 +10,7 @@ layout: Doc
 
 <!-- DOCS-SITE-LINK:END -->
 
-# AWS - Functions
+# AWS Lambda Functions
 
 If you are using AWS as a provider, all _functions_ inside the service are AWS Lambda functions.
 
@@ -26,7 +24,7 @@ service: myService
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
   memorySize: 512 # optional, in MB, default is 1024
   timeout: 10 # optional, in seconds, default is 6
   versionFunctions: false # optional, default is true
@@ -62,7 +60,7 @@ service: myService
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
 
 functions:
   functionOne:
@@ -82,7 +80,7 @@ service: myService
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
   memorySize: 512 # will be inherited by all functions
 
 functions:
@@ -98,7 +96,7 @@ service: myService
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
 
 functions:
   functionOne:
@@ -134,7 +132,7 @@ service: myService
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
   iam:
     role:
       statements: # permissions for all of your functions can be set here
@@ -633,7 +631,7 @@ service: service
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
 
 functions:
   hello:
@@ -686,7 +684,7 @@ service: myService
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
   tracing:
     lambda: true
 ```

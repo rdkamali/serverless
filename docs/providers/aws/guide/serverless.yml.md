@@ -83,6 +83,9 @@ provider:
   # Optional CloudFormation tags to apply to the stack
   stackTags:
     key: value
+  # Method used for CloudFormation deployments: 'changesets' or 'direct' (default: changesets)
+  # See https://www.serverless.com/framework/docs/providers/aws/guide/deploying#deployment-method
+  deploymentMethod: direct
   # List of existing Amazon SNS topics in the same region where notifications about stack events are sent.
   notificationArns:
     - 'arn:aws:sns:us-east-1:XXXXXX:mytopic'
@@ -236,7 +239,7 @@ provider:
   # Use a custom name for the API Gateway API
   apiName: custom-api-name
   # Endpoint type for API Gateway REST API: edge or regional (default: edge)
-  endpointType: regional
+  endpointType: REGIONAL
   # Use a custom name for the websockets API
   websocketsApiName: custom-websockets-api-name
   # custom route selection expression
@@ -707,6 +710,10 @@ functions:
       arn: arn:aws:elasticfilesystem:us-east-1:11111111:access-point/fsap-a1a1a1
       # Path under which EFS will be mounted and accessible in Lambda
       localMountPath: /mnt/example
+    # Maximum retry attempts when an asynchronous invocation fails (between 0 and 2; default: 2)
+    maximumRetryAttempts: 1
+    # Maximum event age in seconds when invoking asynchronously (between 60 and 21600)
+    maximumEventAge: 7200
 ```
 
 ## Lambda events
@@ -836,6 +843,8 @@ functions:
           # Set to 'true' when using an existing bucket
           # Else the bucket will be automatically created
           existing: true
+          # Optional, for forcing deployment of triggers on existing S3 buckets
+          forceDeploy: true
 ```
 
 ### Schedule
@@ -959,6 +968,10 @@ functions:
           startingPosition: LATEST
           # (default: true)
           enabled: false
+          # Optional, arn of the secret key for authenticating with the brokers in your MSK cluster.
+          saslScram512: arn:aws:secretsmanager:region:XXXXXX:secret:AmazonMSK_xxxxxx
+          # Optional, specifies the consumer group ID to be used when consuming from Kafka. If not provided, a random UUID will be generated
+          consumerGroupId: MyConsumerGroupId
 ```
 
 ### ActiveMQ
@@ -1014,6 +1027,8 @@ functions:
           startingPosition: LATEST
           # (default: true)
           enabled: false
+          # Optional, specifies the consumer group ID to be used when consuming from Kafka. If not provided, a random UUID will be generated
+          consumerGroupId: MyConsumerGroupId
 ```
 
 ### RabbitMQ
@@ -1130,6 +1145,14 @@ functions:
           # Optional, if you're referencing an existing User Pool
           existing: true
           # Optional, for forcing deployment of triggers on existing User Pools
+          forceDeploy: true
+      - cognitoUserPool:
+          pool: MyUserPool
+          trigger: CustomEmailSender
+          # Required, if you're using the CustomSMSSender or CustomEmailSender triggers
+          # Can either be KMS Key ARN string or reference to KMS Key Resource ARN
+          kmsKeyId: 'arn:aws:kms:eu-west-1:111111111111:key/12345678-9abc-def0-1234-56789abcdef1'
+          existing: true
           forceDeploy: true
 ```
 

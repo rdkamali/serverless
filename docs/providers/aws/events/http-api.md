@@ -1,8 +1,8 @@
 <!--
-title: Serverless Framework - AWS Lambda Events - HTTP API
+title: Serverless Framework - AWS Lambda Events - HTTP API (API Gateway v2)
 menuText: HTTP API
 menuOrder: 2
-description: Setting up API Gateway HTTP APIs with AWS Lambda via the Serverless Framework
+description: Deploying HTTP APIs with AWS Lambda and API Gateway v2 via the Serverless Framework
 layout: Doc
 -->
 
@@ -12,7 +12,7 @@ layout: Doc
 
 <!-- DOCS-SITE-LINK:END -->
 
-# API Gateway HTTP API
+# HTTP API (API Gateway v2)
 
 API Gateway lets you deploy HTTP APIs. It comes [in two versions](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-vs-rest.html):
 
@@ -73,7 +73,7 @@ functions:
 
 ### Endpoints timeout
 
-Framework ensures that function timeout setting (which defaults to 6 seconds) is respected in HTTP API endpoint configuration. Still note that maximum possible timeout for an endpoint is 29 seconds. Ensure to keep function timeout below that. Otherwise you may observe successful lambda invocations reported with `503` status code.
+The default and maximal API Gateway timeout is used: 30s. Ensure to keep function timeout below 29s. Otherwise, you may observe successful lambda invocations reported with `503` status code.
 
 ### CORS Setup
 
@@ -89,11 +89,11 @@ provider:
 
 It'll result with headers as:
 
-| Header                       | Value                                                                                       |
-| :--------------------------- | :------------------------------------------------------------------------------------------ |
-| Access-Control-Allow-Origin  | \*                                                                                          |
-| Access-Control-Allow-Headers | Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token, X-Amz-User-Agent) |
-| Access-Control-Allow-Methods | OPTIONS, _(...all defined in endpoints)_                                                    |
+| Header                       | Value                                                                                                       |
+| :--------------------------- | :---------------------------------------------------------------------------------------------------------- |
+| Access-Control-Allow-Origin  | \*                                                                                                          |
+| Access-Control-Allow-Headers | Content-Type, X-Amz-Date, Authorization, X-Api-Key, X-Amz-Security-Token, X-Amz-User-Agent, X-Amzn-Trace-Id |
+| Access-Control-Allow-Methods | OPTIONS, _(...all defined in endpoints)_                                                                    |
 
 If there's a need to fine tune CORS headers, then each can be configured individually as follows:
 
@@ -326,6 +326,12 @@ provider:
 ```
 
 In such case no API and stage resources are created, therefore extending HTTP API with CORS, access logs settings or authorizers is not supported.
+
+## HTTP API URL
+
+When deploying functions with `httpApi` events, the URL of the HTTP API will be displayed in the `serverless deploy` and `serverless info` output.
+
+The URL is also exported as a CloudFormation output under the `HttpApiUrl` output.
 
 ## Shared Authorizer
 

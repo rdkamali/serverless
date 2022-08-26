@@ -12,7 +12,7 @@ describe('test/unit/lib/cli/interactive-setup/index.test.js', () => {
   it('should configure interactive setup flow', async () => {
     const slsProcessPromise = spawn(
       'node',
-      [serverlessPath, '--template-path', path.join(fixturesPath, 'aws')],
+      [serverlessPath, '--console', '--template-path', path.join(fixturesPath, 'aws')],
       {
         env: {
           ...process.env,
@@ -31,13 +31,13 @@ describe('test/unit/lib/cli/interactive-setup/index.test.js', () => {
         input: 'interactive-setup-test',
       },
 
-      // dashboard-login
+      // console-login
       {
-        instructionString: 'Do you want to login/register to Serverless Dashboard?',
-        input: '\u001b[B', // Move cursor down by one line
+        instructionString: 'Do you want to login/register to Serverless Console?',
+        input: 'n', // Move cursor down by one line
       },
 
-      // dashboard-set-org
+      // console-set-org
       // Skipped, as internally depends on remote state of data and cannot be easily tested offline
 
       // aws-credentials
@@ -45,7 +45,7 @@ describe('test/unit/lib/cli/interactive-setup/index.test.js', () => {
         instructionString: 'No AWS credentials found, what credentials do you want to use?',
       },
       { instructionString: 'AWS account', input: 'Y' },
-      { instructionString: 'Press Enter to continue' },
+      { instructionString: 'press [Enter]' },
       {
         instructionString: 'AWS Access Key Id',
         input: 'AKIAIOSFODNN7EXAMPLE',

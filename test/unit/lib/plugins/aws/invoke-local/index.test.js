@@ -1175,6 +1175,25 @@ describe('test/unit/lib/plugins/aws/invokeLocal/index.test.js', () => {
       expect(secondRemainingMs).to.be.lte(2910);
       expect(thirdRemainingMs).to.be.lte(secondRemainingMs);
     });
+
+    it('should support handlers with `.cjs` extension', async () => {
+      const { output } = await runServerless({
+        fixture: 'invocation',
+        command: 'invoke local',
+        options: { function: 'asyncCjs' },
+      });
+
+      expect(output).to.include('Invoked');
+    });
+    it('should support handlers that are ES modules', async () => {
+      const { output } = await runServerless({
+        fixture: 'invocation',
+        command: 'invoke local',
+        options: { function: 'asyncEsm' },
+      });
+
+      expect(output).to.include('Invoked');
+    });
   });
 
   describe('Python', () => {

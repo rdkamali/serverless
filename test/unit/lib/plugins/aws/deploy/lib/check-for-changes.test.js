@@ -141,7 +141,7 @@ describe('checkForChanges', () => {
       return expect(awsDeploy.getMostRecentObjects()).to.be.fulfilled.then((result) => {
         expect(listObjectsV2Stub).to.have.been.calledWithExactly('S3', 'listObjectsV2', {
           Bucket: awsDeploy.bucketName,
-          Prefix: 'serverless/my-service/dev',
+          Prefix: 'serverless/my-service/dev/',
         });
         expect(result).to.deep.equal([]);
       });
@@ -162,7 +162,7 @@ describe('checkForChanges', () => {
       return expect(awsDeploy.getMostRecentObjects()).to.be.fulfilled.then((result) => {
         expect(listObjectsV2Stub).to.have.been.calledWithExactly('S3', 'listObjectsV2', {
           Bucket: awsDeploy.bucketName,
-          Prefix: 'serverless/my-service/dev',
+          Prefix: 'serverless/my-service/dev/',
         });
         expect(result).to.deep.equal([
           { Key: `${s3Key}/151224711231-2016-08-18T15:43:00/cloudformation.json` },
@@ -1106,6 +1106,41 @@ describe('test/unit/lib/plugins/aws/deploy/lib/checkForChanges.test.js', () => {
       'code'
       // TODO: Fill with expected error code
     );
+  });
+
+  it('Should gently handle error of accessing objects from S3 bucket', async () => {
+    await expect(
+      runServerless({
+        fixture: 'check-for-changes',
+        command: 'deploy',
+        lastLifecycleHookName: 'aws:deploy:deploy:checkForChanges',
+        env: { AWS_CONTAINER_CREDENTIALS_FULL_URI: 'ignore' },
+        awsRequestStubMap: {
+          ...commonAwsSdkMock,
+          S3: {
+            headObject: () => {
+              const err = new Error('err');
+              err.code = 'AWS_S3_HEAD_OBJECT_FORBIDDEN';
+              throw err;
+            },
+            headBucket: () => {},
+            listObjectsV2: () => {
+              return {
+                Contents: [
+                  {
+                    Key: 'serverless/test-package-artifact/dev/1589988704359-2020-05-20T15:31:44.359Z/artifact.zip',
+                    LastModified: new Date(),
+                    ETag: '"5102a4cf710cae6497dba9e61b85d0a4"',
+                    Size: 356,
+                    StorageClass: 'STANDARD',
+                  },
+                ],
+              };
+            },
+          },
+        },
+      })
+    ).to.eventually.be.rejected.and.have.property('code', 'AWS_S3_HEAD_OBJECT_FORBIDDEN');
   });
 
   describe('checkLogGroupSubscriptionFilterResourceLimitExceeded', () => {

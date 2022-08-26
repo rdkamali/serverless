@@ -1,7 +1,5 @@
 <!--
-title: Serverless Framework - AWS Lambda Guide - Deploying
-menuText: Deploying
-menuOrder: 9
+title: Serverless Framework - Deploying to AWS
 description: How to deploy your AWS Lambda functions and their required infrastructure
 layout: Doc
 -->
@@ -12,7 +10,7 @@ layout: Doc
 
 <!-- DOCS-SITE-LINK:END -->
 
-# AWS - Deploying
+# Deploying to AWS
 
 The Serverless Framework was designed to provision your AWS Lambda Functions, Events and infrastructure Resources safely and quickly. It does this via a couple of methods designed for different types of deployments.
 
@@ -43,6 +41,20 @@ The Serverless Framework translates all syntax in `serverless.yml` to a single A
 - Any IAM Roles, Functions, Events and Resources are added to the AWS CloudFormation template.
 - The CloudFormation Stack is updated with the new CloudFormation template.
 - Each deployment publishes a new version for each function in your service.
+
+### Deployment method
+
+Since Serverless Framework v3, deployments are done using [CloudFormation change sets](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html). It is possible to use [CloudFormation direct deployments](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-direct.html) instead.
+
+Direct deployments **are faster** and have no downsides (unless you specifically use the generated change sets). They will become the default in Serverless Framework 4.
+
+You are encouraged to enable direct deployments via the `deploymentMethod` option:
+
+```
+provider:
+  name: aws
+  deploymentMethod: direct
+```
 
 ### Tips
 

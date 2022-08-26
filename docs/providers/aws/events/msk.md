@@ -64,6 +64,26 @@ functions:
           startingPosition: LATEST
 ```
 
+Optionally, you can provide the following properties:
+
+- `consumerGroupId` - the consumer group id to use for consuming messages
+
+For example:
+
+```yml
+functions:
+  compute:
+    handler: handler.compute
+    events:
+      - msk:
+          arn: arn:aws:kafka:region:XXXXXX:cluster/MyCluster/xxxx-xxxxx-xxxx
+          topic: mytopic
+          batchSize: 1000
+          maximumBatchingWindow: 30
+          startingPosition: LATEST
+          consumerGroupId: MyConsumerGroupId
+```
+
 ## Enabling and disabling MSK event
 
 The `msk` event also supports `enabled` parameter, which is used to control if the event source mapping is active. Setting it to `false` will pause polling for and processing new messages.
@@ -79,6 +99,21 @@ functions:
           arn: arn:aws:kafka:region:XXXXXX:cluster/MyCluster/xxxx-xxxxx-xxxx
           topic: mytopic
           enabled: false
+```
+
+## Enabling authentication
+
+In order to authenticate to the `msk` you can set the `saslScram512`, which sets the authentication protocol.
+
+```yml
+functions:
+  compute:
+    handler: handler.compute
+    events:
+      - msk:
+          arn: arn:aws:kafka:region:XXXXXX:cluster/MyCluster/xxxx-xxxxx-xxxx
+          topic: mytopic
+          saslScram512: arn:aws:secretsmanager:region:XXXXXX:secret:AmazonMSK_xxxxxx
 ```
 
 ## IAM Permissions
